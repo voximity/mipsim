@@ -85,6 +85,9 @@ impl App {
             }
         }
 
+        self.unsaved = false;
+        self.output.log.tx.send("File saved".into()).unwrap();
+
         Ok(())
     }
 }
@@ -160,7 +163,6 @@ impl eframe::App for App {
         ctx.input(|i| {
             if i.modifiers.ctrl && i.key_pressed(egui::Key::S) {
                 self.save_file(false, frame).expect("failed to save file");
-                println!("saved");
             }
         });
     }
