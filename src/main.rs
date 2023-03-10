@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use assembler::parser::Parser;
 use editor::Editor;
 use output::Output;
 use simulator::Processor;
@@ -49,7 +50,7 @@ impl App {
         match path {
             Some(path) => {
                 if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                    frame.set_window_title(&format!("mipsim - {}", file_name));
+                    frame.set_window_title(&format!("mipsim - {file_name}"));
                 }
                 self.file = Some(path);
             }
@@ -125,6 +126,25 @@ impl eframe::App for App {
                     if ui.button("Save As...").clicked() {
                         ui.close_menu();
                         self.save_file(true, frame).expect("failed to save file");
+                    }
+                });
+
+                ui.menu_button("Assemble", |ui| {
+                    if ui.button("Assemble").clicked() {
+                        match Parser::new(&self.body).parse() {
+                            Ok(_) => self
+                                .output
+                                .log
+                                .tx
+                                .send("Parsed successfully".into())
+                                .unwrap(),
+                            Err(e) => self
+                                .output
+                                .log
+                                .tx
+                                .send(format!("Error while parsing: {e}"))
+                                .unwrap(),
+                        };
                     }
                 });
             })

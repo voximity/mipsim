@@ -1,14 +1,39 @@
+use std::{cell::Cell, num::ParseIntError};
+
 use thiserror::Error;
 
+use crate::simulator::Registers;
+
 use super::{
-    inst::Inst,
+    inst::{Inst, InstArg, INSTRUCTIONS},
     lexer::{Lexeme, LexemeKind, Lexer},
 };
 
+pub type SrcLexeme<'a> = (&'a Lexeme, &'a str);
+
+// TODO: make these errors better
 #[derive(Debug, Error)]
 pub enum ParseError<'a> {
     #[error("unknown section or directive \"{0}\"")]
     UnknownSectDirective(&'a str),
+    #[error("expected {0:?}, got {1:?}")]
+    ExpectedLexeme(LexemeKind, Option<&'a Lexeme>),
+    #[error("unexpected {0:?}")]
+    UnexpectedLexeme(&'a Lexeme),
+    #[error("integer parse error")]
+    ParseIntError(#[from] ParseIntError),
+    #[error("string parse error")]
+    ParseStringError(&'a Lexeme),
+    #[error("unterminated string")]
+    UnterminatedString(&'a Lexeme),
+    #[error("unknown instruction {0}")]
+    UnknownInstruction(&'a str),
+    #[error("expected {0}, got {1:?}")]
+    ExpectedPunct(&'static str, &'a Lexeme),
+    #[error("expected immediate, got {0:?}")]
+    ExpectedImm(Option<&'a Lexeme>),
+    #[error("unknown register {0:?}")]
+    UnknownRegister(&'a Lexeme),
 }
 
 /// A node in the assembly tree.
@@ -21,6 +46,7 @@ pub enum Node<'a> {
         rs: u8,
         rt: u8,
         rd: u8,
+        shamt: u8,
         imm: NodeImm<'a>,
     },
 
@@ -31,7 +57,7 @@ pub enum Node<'a> {
     Section(Section),
 
     /// A directive, e.g. `.word` or `.asciiz`.
-    Directive(Directive<'a>),
+    Directive(Directive),
 }
 
 /// An immediate value type for a node.
@@ -53,13 +79,13 @@ pub enum Section {
 }
 
 #[derive(Debug, Clone)]
-pub enum Directive<'a> {
+pub enum Directive {
     Byte(u8),
     Half(u16),
     Word(u32),
-    Asciiz(&'a str),
+    Asciiz(String),
     /// Equivalent to `.asciiz "string" .align 2`.
-    Stringz(&'a str),
+    Stringz(String),
     Align(u8),
 }
 
@@ -67,7 +93,9 @@ pub enum Directive<'a> {
 pub struct Parser<'a> {
     source: &'a str,
     lexemes: Vec<Lexeme>,
-    pos: usize,
+
+    // TODO: does this need interior mutability?
+    pos: Cell<usize>,
 }
 
 impl<'a> Parser<'a> {
@@ -75,32 +103,220 @@ impl<'a> Parser<'a> {
         Self {
             source,
             lexemes: Lexer::new(source).lex(),
-            pos: 0,
+            pos: Cell::new(0),
         }
     }
 
-    pub fn parse(self) -> Result<Vec<Node<'a>>, ParseError<'a>> {
+    pub fn pos(&self) -> usize {
+        self.pos.get()
+    }
+
+    pub fn skip(&self) {
+        self.pos.set(self.pos.get() + 1);
+    }
+
+    pub fn peek(&'a self) -> Option<(&'a Lexeme, &'a str)> {
+        self.lexemes
+            .get(self.pos())
+            .map(|l| (l, &self.source[l.slice.clone()]))
+    }
+
+    pub fn peek_kind(&'a self) -> Option<LexemeKind> {
+        self.peek().map(|l| l.0.kind)
+    }
+
+    pub fn next(&'a self) -> Option<(&'a Lexeme, &'a str)> {
+        match self.peek() {
+            Some(l) => {
+                self.skip();
+                Some(l)
+            }
+            None => None,
+        }
+    }
+
+    pub fn next_expect_kind(
+        &'a self,
+        expected: LexemeKind,
+    ) -> Result<(&'a Lexeme, &'a str), ParseError<'a>> {
+        match self.peek() {
+            Some((lexeme, slice)) if lexeme.kind == expected => {
+                self.skip();
+                Ok((lexeme, slice))
+            }
+            x => Err(ParseError::ExpectedLexeme(expected, x.map(|l| l.0))),
+        }
+    }
+
+    pub fn expect_punct(&'a self, punct: &'static str) -> Result<(), ParseError<'a>> {
+        let (lexeme, slice) = self.next_expect_kind(LexemeKind::Punct)?;
+        if slice == punct {
+            Ok(())
+        } else {
+            Err(ParseError::ExpectedPunct(punct, lexeme))
+        }
+    }
+
+    pub fn parse_u8(&'a self) -> Result<u8, ParseError<'a>> {
+        let (_, slice) = self.next_expect_kind(LexemeKind::Imm)?;
+
+        if let Some(stripped) = slice.strip_prefix("0x") {
+            // hexadecimal
+            Ok(u8::from_str_radix(stripped, 16)?)
+        } else {
+            // try to parse normally
+            Ok(str::parse(slice)?)
+        }
+    }
+
+    pub fn parse_u16(&'a self) -> Result<u16, ParseError<'a>> {
+        let (_, slice) = self.next_expect_kind(LexemeKind::Imm)?;
+
+        if let Some(stripped) = slice.strip_prefix("0x") {
+            // hexadecimal
+            Ok(u16::from_str_radix(stripped, 16)?)
+        } else {
+            // try to parse normally
+            Ok(str::parse(slice)?)
+        }
+    }
+
+    pub fn parse_u32(&'a self) -> Result<u32, ParseError<'a>> {
+        let (_, slice) = self.next_expect_kind(LexemeKind::Imm)?;
+
+        if let Some(stripped) = slice.strip_prefix("0x") {
+            // hexadecimal
+            Ok(u32::from_str_radix(stripped, 16)?)
+        } else {
+            // try to parse normally
+            Ok(str::parse(slice)?)
+        }
+    }
+
+    pub fn parse_string(&'a self) -> Result<String, ParseError<'a>> {
+        let (lex, slice) = self.next_expect_kind(LexemeKind::Imm)?;
+        if !slice.starts_with('"') {
+            return Err(ParseError::ParseStringError(lex));
+        }
+
+        let mut buf = String::new();
+        let mut escape = false;
+        for c in slice.chars().skip(1) {
+            match c {
+                '\\' if !escape => {
+                    escape = true;
+                }
+                '"' if !escape => {
+                    return Ok(buf);
+                }
+                _ => {
+                    escape = false;
+                    buf.push(c);
+                }
+            }
+        }
+
+        Err(ParseError::UnterminatedString(lex))
+    }
+
+    pub fn parse_register(&'a self) -> Result<u8, ParseError<'a>> {
+        let (lex, slice) = self.next_expect_kind(LexemeKind::Reg)?;
+
+        if let Some(stripped) = slice.strip_prefix('$') {
+            Ok(Registers::index(stripped).ok_or(ParseError::UnknownRegister(lex))? as u8)
+        } else {
+            panic!("bad input to parser from lexer");
+        }
+    }
+
+    pub fn parse(&'a self) -> Result<Vec<Node<'a>>, ParseError<'a>> {
         let mut nodes = vec![];
 
-        while self.pos < self.lexemes.len() {
-            let lexeme = &self.lexemes[self.pos];
-            let slice = &self.source[lexeme.slice.clone()];
-
+        while let Some((lexeme, slice)) = self.next() {
+            #[allow(clippy::single_match)]
             match lexeme.kind {
+                // sections
                 LexemeKind::Sect => {
                     let name = &slice[1..];
                     match name {
                         "data" => nodes.push(Node::Section(Section::Data)),
                         "text" => nodes.push(Node::Section(Section::Text)),
 
-                        "byte" => {
-                            // TODO
+                        // TODO: it is assumed that each of these are unsigned
+                        "byte" => nodes.push(Node::Directive(Directive::Byte(self.parse_u8()?))),
+                        "half" => nodes.push(Node::Directive(Directive::Half(self.parse_u16()?))),
+                        "word" => nodes.push(Node::Directive(Directive::Word(self.parse_u32()?))),
+
+                        "asciiz" => {
+                            nodes.push(Node::Directive(Directive::Asciiz(self.parse_string()?)))
                         }
+                        "stringz" => {
+                            nodes.push(Node::Directive(Directive::Stringz(self.parse_string()?)))
+                        }
+
+                        "align" => nodes.push(Node::Directive(Directive::Align(self.parse_u8()?))),
 
                         _ => return Err(ParseError::UnknownSectDirective(name)),
                     };
                 }
-                _ => (),
+
+                // labels
+                LexemeKind::Label => nodes.push(Node::Label(
+                    slice
+                        .strip_suffix(':')
+                        .expect("lexer gave bad input to parser"),
+                )),
+
+                // instructions
+                LexemeKind::Inst => {
+                    let inst = INSTRUCTIONS
+                        .get(slice)
+                        .ok_or(ParseError::UnknownInstruction(slice))?;
+
+                    let mut rs = 0;
+                    let mut rt = 0;
+                    let mut rd = 0;
+                    let mut shamt = 0;
+                    let mut imm = NodeImm::Word(0);
+
+                    for arg in inst.args {
+                        match arg {
+                            InstArg::None => break,
+                            InstArg::Rs => {
+                                rs = self.parse_register()?;
+                            }
+                            InstArg::Rt => {
+                                rt = self.parse_register()?;
+                            }
+                            InstArg::Rd => {
+                                rd = self.parse_register()?;
+                            }
+                            InstArg::Shamt => {
+                                shamt = self.parse_u8()?;
+                            }
+                            InstArg::Imm => match self.peek_kind() {
+                                Some(LexemeKind::Imm) => {
+                                    imm = NodeImm::Word(self.parse_u32()?);
+                                }
+                                Some(LexemeKind::Label) => {
+                                    imm = NodeImm::Label(self.next().unwrap().1);
+                                }
+                                _ => return Err(ParseError::ExpectedImm(self.next().map(|l| l.0))),
+                            },
+                        }
+                    }
+
+                    nodes.push(Node::Inst {
+                        inst,
+                        rs,
+                        rt,
+                        rd,
+                        shamt,
+                        imm,
+                    })
+                }
+
+                _ => return Err(ParseError::UnexpectedLexeme(lexeme)),
             }
         }
 
