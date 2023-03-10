@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, ops::Range};
 
-use super::IndexedChars;
+use crate::util::IndexedChars;
 
 #[derive(Default, Debug, Clone)]
 pub struct Lexeme {
@@ -138,7 +138,7 @@ impl<'a> Lexer<'a> {
                     if self.peek_is(|c| c == ':') {
                         // a label marker
                         self.chars.next();
-                        slice.end = self.chars.offset;
+                        slice.end = self.chars.offset();
 
                         lexemes.push(Lexeme {
                             slice,

@@ -1,4 +1,4 @@
-use crate::par_buf::ParBuf;
+use crate::util::ParBuf;
 
 #[derive(Debug, Default)]
 pub enum OutputTab {

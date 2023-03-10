@@ -8,8 +8,8 @@ mod assembler;
 mod editor;
 mod highlighting;
 mod output;
-mod par_buf;
 mod simulator;
+mod util;
 
 fn main() {
     eframe::run_native(
