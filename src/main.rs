@@ -130,13 +130,13 @@ impl eframe::App for App {
                 });
 
                 ui.menu_button("Assemble", |ui| {
-                    if ui.button("Assemble").clicked() {
+                    if ui.button("Parse test").clicked() {
                         match Parser::new(&self.body).parse() {
-                            Ok(_) => self
+                            Ok(v) => self
                                 .output
                                 .log
                                 .tx
-                                .send("Parsed successfully".into())
+                                .send(format!("Parse result: {v:#?}"))
                                 .unwrap(),
                             Err(e) => self
                                 .output

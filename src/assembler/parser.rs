@@ -5,7 +5,7 @@ use thiserror::Error;
 use crate::simulator::Registers;
 
 use super::{
-    inst::{Inst, InstArg, INSTRUCTIONS},
+    inst::{Inst, InstArg, InstType, INSTRUCTIONS},
     lexer::{Lexeme, LexemeKind, Lexer},
 };
 
@@ -24,7 +24,7 @@ pub enum ParseError<'a> {
     ParseIntError(#[from] ParseIntError),
     #[error("string parse error")]
     ParseStringError(&'a Lexeme),
-    #[error("unterminated string")]
+    #[error("unterminated string at {0:?}")]
     UnterminatedString(&'a Lexeme),
     #[error("unknown instruction {0}")]
     UnknownInstruction(&'a str),
@@ -272,6 +272,7 @@ impl<'a> Parser<'a> {
                     let inst = INSTRUCTIONS
                         .get(slice)
                         .ok_or(ParseError::UnknownInstruction(slice))?;
+                    let ty_ils = matches!(inst.ty, InstType::Ils);
 
                     let mut rs = 0;
                     let mut rt = 0;
@@ -279,7 +280,22 @@ impl<'a> Parser<'a> {
                     let mut shamt = 0;
                     let mut imm = NodeImm::Word(0);
 
-                    for arg in inst.args {
+                    for (i, arg) in inst.args.iter().enumerate() {
+                        if matches!(arg, InstArg::None) {
+                            break;
+                        }
+
+                        if ty_ils {
+                            match i {
+                                0 => (),
+                                1 => self.expect_punct(",")?,
+                                2 => self.expect_punct("(")?,
+                                _ => unreachable!(),
+                            }
+                        } else if i > 0 {
+                            self.expect_punct(",")?;
+                        }
+
                         match arg {
                             InstArg::None => break,
                             InstArg::Rs => {
@@ -303,6 +319,10 @@ impl<'a> Parser<'a> {
                                 }
                                 _ => return Err(ParseError::ExpectedImm(self.next().map(|l| l.0))),
                             },
+                        }
+
+                        if ty_ils && i == 2 {
+                            self.expect_punct(")")?;
                         }
                     }
 
