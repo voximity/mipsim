@@ -1366,6 +1366,7 @@ dependencies = [
  "egui_extras",
  "lazy_static",
  "rfd",
+ "thiserror",
 ]
 
 [[package]]

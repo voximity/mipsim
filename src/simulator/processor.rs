@@ -57,12 +57,16 @@ impl Registers {
 
     pub fn show(&self, ui: &mut egui::Ui) {
         TableBuilder::new(ui)
-            .column(Column::auto().at_least(80.0).resizable(false))
+            .column(Column::auto().at_least(60.0).resizable(false))
+            .column(Column::auto().at_least(30.0).resizable(false))
             .column(Column::remainder().resizable(false))
             .striped(true)
             .header(20.0, |mut header| {
                 header.col(|ui| {
                     ui.strong("Register");
+                });
+                header.col(|ui| {
+                    ui.strong("Num.");
                 });
                 header.col(|ui| {
                     ui.strong("Value");
@@ -72,6 +76,9 @@ impl Registers {
                 body.rows(14.0, 32, |i, mut row| {
                     row.col(|ui| {
                         ui.monospace(format!("${}", Self::name(i)));
+                    });
+                    row.col(|ui| {
+                        ui.monospace(format!("{}", i));
                     });
                     row.col(|ui| {
                         ui.label(format!("{}", self.data[i].0));
