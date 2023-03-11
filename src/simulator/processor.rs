@@ -223,43 +223,43 @@ impl Processor {
             // lbu
             0x24 => {
                 self.mem
-                    .set_pos((self.regs.get_i32(rs) + to_signed_imm(imm) as i32) as usize);
+                    .set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
                 self.regs.set_u32(rt, self.mem.read_u8()? as u32);
             }
 
             // lhu
             0x25 => {
                 self.mem
-                    .set_pos((self.regs.get_i32(rs) + to_signed_imm(imm) as i32) as usize);
+                    .set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
                 self.regs.set_u32(rt, self.mem.read_u16::<BE>()? as u32);
             }
 
             // lw
             0x23 => {
                 self.mem
-                    .set_pos((self.regs.get_i32(rs) + to_signed_imm(imm) as i32) as usize);
+                    .set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
                 self.regs.set_u32(rt, self.mem.read_u32::<BE>()?);
             }
 
             // sb
             0x28 => {
                 self.mem
-                    .set_pos((self.regs.get_i32(rs) + to_signed_imm(imm) as i32) as usize);
-                self.mem.write_u8(self.regs.get_u32(rs) as u8)?;
+                    .set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
+                self.mem.write_u8(self.regs.get_u32(rt) as u8)?;
             }
 
             // sh
             0x29 => {
                 self.mem
-                    .set_pos((self.regs.get_i32(rs) + to_signed_imm(imm) as i32) as usize);
-                self.mem.write_u16::<BE>(self.regs.get_u32(rs) as u16)?;
+                    .set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
+                self.mem.write_u16::<BE>(self.regs.get_u32(rt) as u16)?;
             }
 
             // sw
             0x2b => {
                 self.mem
-                    .set_pos((self.regs.get_i32(rs) + to_signed_imm(imm) as i32) as usize);
-                self.mem.write_u32::<BE>(self.regs.get_u32(rs))?;
+                    .set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
+                self.mem.write_u32::<BE>(self.regs.get_u32(rt))?;
             }
 
             // beq

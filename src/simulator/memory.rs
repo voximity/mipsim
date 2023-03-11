@@ -98,8 +98,8 @@ impl Read for Memory {
             read += slice.len();
         }
 
-        self.pos += read;
-        Ok(read)
+        self.pos += len;
+        Ok(len)
     }
 }
 
