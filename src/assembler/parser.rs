@@ -1,4 +1,4 @@
-use std::{cell::Cell, num::ParseIntError};
+use std::{cell::Cell, mem::transmute, num::ParseIntError};
 
 use thiserror::Error;
 
@@ -196,6 +196,12 @@ impl<'a> Parser<'a> {
         }
     }
 
+    pub fn parse_i16(&'a self) -> Result<u16, ParseError<'a>> {
+        let (_, slice) = self.next_expect_kind(LexemeKind::Imm)?;
+
+        Ok(unsafe { transmute::<i16, u16>(str::parse::<i16>(slice)?) })
+    }
+
     pub fn parse_u32(&'a self) -> Result<u32, ParseError<'a>> {
         let (_, slice) = self.next_expect_kind(LexemeKind::Imm)?;
 
@@ -325,7 +331,16 @@ impl<'a> Parser<'a> {
                             InstArg::Shamt => {
                                 shamt = self.parse_u8()?;
                             }
-                            InstArg::Imm => match self.peek_kind() {
+                            InstArg::SImm => match self.peek_kind() {
+                                Some(LexemeKind::Imm) => {
+                                    imm = NodeImm::Half(self.parse_i16()?);
+                                }
+                                Some(LexemeKind::Label) => {
+                                    imm = NodeImm::Label(self.next().unwrap().1);
+                                }
+                                _ => return Err(ParseError::ExpectedImm(self.next().map(|l| l.0))),
+                            },
+                            InstArg::UImm => match self.peek_kind() {
                                 Some(LexemeKind::Imm) => {
                                     imm = NodeImm::Half(self.parse_u16()?);
                                 }
