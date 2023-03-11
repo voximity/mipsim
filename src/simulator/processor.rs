@@ -94,14 +94,16 @@ impl Processor {
 
         match inst.func {
             // add
-            0x20 => self
-                .regs
-                .set_i32(rd, self.regs.get_i32(rs) + self.regs.get_i32(rt)),
+            0x20 => self.regs.set_i32(
+                rd,
+                self.regs.get_i32(rs).wrapping_add(self.regs.get_i32(rt)),
+            ),
 
             // addu
-            0x21 => self
-                .regs
-                .set_u32(rd, self.regs.get_u32(rs) + self.regs.get_u32(rt)),
+            0x21 => self.regs.set_u32(
+                rd,
+                self.regs.get_u32(rs).wrapping_add(self.regs.get_u32(rt)),
+            ),
 
             // and
             0x24 => self
@@ -148,14 +150,16 @@ impl Processor {
             0x02 => self.regs.set_u32(rd, self.regs.get_u32(rs) >> shamt as u32),
 
             // sub
-            0x22 => self
-                .regs
-                .set_i32(rd, self.regs.get_i32(rs) - self.regs.get_i32(rt)),
+            0x22 => self.regs.set_i32(
+                rd,
+                self.regs.get_i32(rs).wrapping_sub(self.regs.get_i32(rt)),
+            ),
 
             // subu
-            0x23 => self
-                .regs
-                .set_u32(rt, self.regs.get_u32(rs) - self.regs.get_u32(rt)),
+            0x23 => self.regs.set_u32(
+                rt,
+                self.regs.get_u32(rs).wrapping_sub(self.regs.get_u32(rt)),
+            ),
 
             // xor
             0x26 => self
@@ -191,12 +195,17 @@ impl Processor {
 
         match inst.opcode {
             // addi
-            0x08 => self
-                .regs
-                .set_i32(rt, self.regs.get_i32(rs) + to_signed_imm(imm) as i32),
+            0x08 => self.regs.set_i32(
+                rt,
+                self.regs
+                    .get_i32(rs)
+                    .wrapping_add(to_signed_imm(imm) as i32),
+            ),
 
             // addiu
-            0x09 => self.regs.set_u32(rt, self.regs.get_u32(rs) + imm as u32),
+            0x09 => self
+                .regs
+                .set_u32(rt, self.regs.get_u32(rs).wrapping_add(imm as u32)),
 
             // andi
             0x0c => self.regs.set_u32(rt, self.regs.get_u32(rs) & imm as u32),
