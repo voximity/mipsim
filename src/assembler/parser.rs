@@ -9,7 +9,7 @@ use super::{
     lexer::{Lexeme, LexemeKind, Lexer},
 };
 
-pub type SrcLexeme<'a> = (&'a Lexeme, &'a str);
+// pub type SrcLexeme<'a> = (&'a Lexeme, &'a str);
 
 // TODO: make these errors better
 #[derive(Debug, Error)]
@@ -39,15 +39,27 @@ pub enum ParseError<'a> {
 /// A node in the assembly tree.
 #[derive(Debug, Clone)]
 pub enum Node<'a> {
-    /// An instruction call.
-    Inst {
-        /// The instruction definition.
+    /// An R-type instruction call.
+    InstR {
         inst: &'static Inst,
         rs: u8,
         rt: u8,
         rd: u8,
         shamt: u8,
+    },
+
+    /// An I-type instruction call.
+    InstI {
+        inst: &'static Inst,
+        rs: u8,
+        rt: u8,
         imm: NodeImm<'a>,
+    },
+
+    /// A J-type instruction call.
+    InstJ {
+        inst: &'static Inst,
+        addr: NodeImm<'a>,
     },
 
     /// A label definition.
@@ -64,6 +76,9 @@ pub enum Node<'a> {
 /// Can be a literal word value, or a label (the address referred to by it).
 #[derive(Debug, Clone)]
 pub enum NodeImm<'a> {
+    /// A literal half.
+    Half(u16),
+
     /// A literal word.
     Word(u32),
 
@@ -278,7 +293,7 @@ impl<'a> Parser<'a> {
                     let mut rt = 0;
                     let mut rd = 0;
                     let mut shamt = 0;
-                    let mut imm = NodeImm::Word(0);
+                    let mut imm = NodeImm::Half(0);
 
                     for (i, arg) in inst.args.iter().enumerate() {
                         if matches!(arg, InstArg::None) {
@@ -312,6 +327,15 @@ impl<'a> Parser<'a> {
                             }
                             InstArg::Imm => match self.peek_kind() {
                                 Some(LexemeKind::Imm) => {
+                                    imm = NodeImm::Half(self.parse_u16()?);
+                                }
+                                Some(LexemeKind::Label) => {
+                                    imm = NodeImm::Label(self.next().unwrap().1);
+                                }
+                                _ => return Err(ParseError::ExpectedImm(self.next().map(|l| l.0))),
+                            },
+                            InstArg::Addr => match self.peek_kind() {
+                                Some(LexemeKind::Imm) => {
                                     imm = NodeImm::Word(self.parse_u32()?);
                                 }
                                 Some(LexemeKind::Label) => {
@@ -326,14 +350,17 @@ impl<'a> Parser<'a> {
                         }
                     }
 
-                    nodes.push(Node::Inst {
-                        inst,
-                        rs,
-                        rt,
-                        rd,
-                        shamt,
-                        imm,
-                    })
+                    nodes.push(match inst.ty {
+                        InstType::R => Node::InstR {
+                            inst,
+                            rs,
+                            rt,
+                            rd,
+                            shamt,
+                        },
+                        InstType::I | InstType::Ils => Node::InstI { inst, rs, rt, imm },
+                        InstType::J => Node::InstJ { inst, addr: imm },
+                    });
                 }
 
                 _ => return Err(ParseError::UnexpectedLexeme(lexeme)),

@@ -13,13 +13,36 @@ pub const ADDR_TEXT: usize = 0x00400000;
 
 type Block = [u8; BLOCK_SIZE];
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct Memory {
     tree: BTreeMap<usize, Block>,
     pos: usize,
 }
 
 impl Memory {
+    pub fn new() -> Self {
+        Self {
+            tree: BTreeMap::new(),
+            pos: 0,
+        }
+    }
+
+    pub fn pos(&self) -> usize {
+        self.pos
+    }
+
+    pub fn set_pos(&mut self, pos: usize) {
+        self.pos = pos;
+    }
+
+    pub fn skip(&mut self, bytes: usize) {
+        self.pos += bytes;
+    }
+
+    pub fn align(&mut self, bytes: usize) {
+        self.pos += bytes - self.pos % bytes;
+    }
+
     /// Get all of the blocks across boundaries, starting at an address, lasting some amount of bytes.
     fn blocks(&self, start_addr: usize, size: usize) -> Vec<(&usize, &Block)> {
         self.tree

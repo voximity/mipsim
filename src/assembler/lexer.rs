@@ -161,6 +161,11 @@ impl<'a> Lexer<'a> {
                     }
                 }
 
+                '-' if self.peek_is(char::is_numeric) => lexemes.push(Lexeme {
+                    slice: self.take_while(idx, char::is_numeric),
+                    kind: LexemeKind::Imm,
+                }),
+
                 // immediates
                 _ if c.is_numeric() => {
                     if c == '0' && self.peek_is(|c| c == 'x') {

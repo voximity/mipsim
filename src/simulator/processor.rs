@@ -2,12 +2,23 @@ use std::mem::transmute;
 
 use egui_extras::{Column, TableBuilder};
 
-use super::Memory;
+use super::{Memory, ADDR_TEXT};
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Processor {
-    pub registers: Registers,
-    pub memory: Memory,
+    pub regs: Registers,
+    pub mem: Memory,
+    pub pc: usize,
+}
+
+impl Default for Processor {
+    fn default() -> Self {
+        Self {
+            regs: Registers::default(),
+            mem: Memory::new(),
+            pc: ADDR_TEXT,
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -17,7 +28,7 @@ pub struct Registers {
 
 impl Registers {
     #[rustfmt::skip]
-    pub fn name(i: usize) -> &'static str {
+    pub const fn name(i: usize) -> &'static str {
         match i {
             0 => "zero",
             1 => "at",
@@ -33,7 +44,7 @@ impl Registers {
             29 => "sp",
             30 => "fp",
             31 => "ra",
-            _ => panic!("invalid register index {i}"),
+            _ => panic!("invalid register index"),
         }
     }
 

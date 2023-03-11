@@ -155,7 +155,7 @@ impl eframe::App for App {
             .width_range(200.0..=400.0)
             .default_width(200.0)
             .show(ctx, |ui| {
-                self.processor.registers.show(ui);
+                self.processor.regs.show(ui);
             });
 
         egui::TopBottomPanel::bottom("panel_output")

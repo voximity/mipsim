@@ -127,6 +127,7 @@ pub enum InstArg {
     Rd,
     Shamt,
     Imm,
+    Addr,
     None,
 }
 
@@ -138,6 +139,7 @@ impl InstArg {
             Self::Rd => "rd",
             Self::Shamt => "shamt",
             Self::Imm => "imm",
+            Self::Addr => "addr",
             Self::None => "",
         }
     }
@@ -149,6 +151,7 @@ impl InstArg {
             Self::Rd => Color32::LIGHT_RED,
             Self::Shamt => Color32::YELLOW,
             Self::Imm => Color32::LIGHT_GREEN,
+            Self::Addr => Color32::LIGHT_GREEN,
             Self::None => Color32::WHITE,
         }
     }
@@ -164,6 +167,7 @@ impl FromStr for InstArg {
             "rd" => Ok(Self::Rd),
             "shamt" => Ok(Self::Shamt),
             "imm" | "offset" => Ok(Self::Imm),
+            "addr" => Ok(Self::Addr),
             _ => Err(()),
         }
     }
@@ -221,8 +225,8 @@ instructions! {
 
     "beq"    "Branch on Equal"                  (I, 0x04/0x00): "If $rt == $rs, branch to $imm." => [Rt, Rs, Imm],
     "bne"    "Branch on Not Equal"              (I, 0x05/0x00): "If $rt != $rs, branch to $imm." => [Rt, Rs, Imm],
-    "j"      "Jump"                             (J, 0x02/0x00): "Jump to $imm." => [Imm, None, None],
-    "jal"    "Jump and Link"                    (J, 0x03/0x00): "Set $ra to $pc, then jump to $imm." => [Imm, None, None],
+    "j"      "Jump"                             (J, 0x02/0x00): "Jump to $imm." => [Addr, None, None],
+    "jal"    "Jump and Link"                    (J, 0x03/0x00): "Set $ra to $pc, then jump to $imm." => [Addr, None, None],
     "jr"     "Jump Register"                    (R, 0x00/0x08): "Jump to the address specified by $rs." => [Rs, None, None],
     "syscall" "System Call"                     (R, 0x00/0x0c): "Perform a system call." => [None, None, None],
 }
