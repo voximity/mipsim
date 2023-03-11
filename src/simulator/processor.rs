@@ -2,9 +2,12 @@ use std::mem::transmute;
 
 use egui_extras::{Column, TableBuilder};
 
+use super::Memory;
+
 #[derive(Debug, Default)]
 pub struct Processor {
     pub registers: Registers,
+    pub memory: Memory,
 }
 
 #[derive(Debug, Default)]
@@ -30,7 +33,7 @@ impl Registers {
             29 => "sp",
             30 => "fp",
             31 => "ra",
-            _ => panic!("invalid register index {}", i),
+            _ => panic!("invalid register index {i}"),
         }
     }
 
@@ -78,7 +81,7 @@ impl Registers {
                         ui.monospace(format!("${}", Self::name(i)));
                     });
                     row.col(|ui| {
-                        ui.monospace(format!("{}", i));
+                        ui.monospace(format!("{i}"));
                     });
                     row.col(|ui| {
                         ui.label(format!("{}", self.data[i].0));

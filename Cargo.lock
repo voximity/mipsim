@@ -1361,6 +1361,7 @@ dependencies = [
 name = "mipsim"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
  "eframe",
  "egui",
  "egui_extras",
