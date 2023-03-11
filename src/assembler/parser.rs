@@ -82,6 +82,9 @@ pub enum NodeImm<'a> {
     /// A literal word.
     Word(u32),
 
+    /// An address. Will be shifted right two bits by the assembler.
+    Addr(u32),
+
     /// A label reference. Dereferences to its address.
     Label(&'a str),
 }
@@ -351,7 +354,7 @@ impl<'a> Parser<'a> {
                             },
                             InstArg::Addr => match self.peek_kind() {
                                 Some(LexemeKind::Imm) => {
-                                    imm = NodeImm::Word(self.parse_u32()?);
+                                    imm = NodeImm::Addr(self.parse_u32()?);
                                 }
                                 Some(LexemeKind::Label) => {
                                     imm = NodeImm::Label(self.next().unwrap().1);

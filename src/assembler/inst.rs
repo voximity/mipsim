@@ -195,6 +195,10 @@ macro_rules! instructions {
     }
 }
 
+/// Instruction mnemonics that store addresses as relative to their
+/// address, NOT absolutely.
+pub static INST_ADDR_RELATIVE: &[&str] = &["beq", "bne"];
+
 instructions! {
     // mnem. name                               (T, Opco/Func): description => [Arg1, Arg2, Arg3],
     "add"    "Add"                              (R, 0x00/0x20): "Performs $rd = $rs + $rt." => [Rd, Rs, Rt],

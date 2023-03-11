@@ -1,11 +1,15 @@
 use std::{
     collections::HashMap,
     io::{self, Seek, SeekFrom, Write},
+    mem::transmute,
 };
 
 use byteorder::{ReadBytesExt, WriteBytesExt, BE};
 
-use crate::assembler::parser::{Directive, Node, NodeImm, Section};
+use crate::assembler::{
+    inst::INST_ADDR_RELATIVE,
+    parser::{Directive, Node, NodeImm, Section},
+};
 
 use super::{Processor, ADDR_STATIC, ADDR_TEXT};
 use thiserror::Error;
@@ -78,6 +82,7 @@ impl Processor {
                         // TODO: this may overflow the other register data
                         NodeImm::Half(half) => encoded |= *half as u32,
                         NodeImm::Word(word) => encoded |= *word as u16 as u32,
+                        NodeImm::Addr(addr) => encoded |= *addr as u16 as u32 >> 2,
                         NodeImm::Label(_) => {
                             nodes_with_labels.push((self.mem.pos(), node));
                         }
@@ -91,8 +96,9 @@ impl Processor {
 
                     match addr {
                         // TODO: this may overflow the opcode
-                        NodeImm::Half(half) => encoded |= *half as u32,
-                        NodeImm::Word(word) => encoded |= *word,
+                        NodeImm::Half(half) => encoded |= *half as u32 >> 2,
+                        NodeImm::Word(word) => encoded |= *word >> 2,
+                        NodeImm::Addr(addr) => encoded |= *addr >> 2,
                         NodeImm::Label(_) => {
                             nodes_with_labels.push((self.mem.pos(), node));
                         }
@@ -105,20 +111,28 @@ impl Processor {
 
         for (addr, node) in nodes_with_labels {
             match node {
-                Node::InstI { imm, .. } | Node::InstJ { addr: imm, .. } => {
-                    // TODO: this depends on branch/jump instructions
-
+                Node::InstI { inst, imm, .. }
+                | Node::InstJ {
+                    inst, addr: imm, ..
+                } => {
                     self.mem.set_pos(addr);
                     let mut encoded = self.mem.read_u32::<BE>()?;
-                    match imm {
-                        NodeImm::Label(label) => {
-                            encoded |= *labels
-                                .get(label)
-                                .ok_or(AssembleError::UnknownLabel(label))?
-                                as u32
-                        }
+                    let label = match imm {
+                        NodeImm::Label(label) => labels
+                            .get(label)
+                            .ok_or(AssembleError::UnknownLabel(label))?,
                         _ => unreachable!(),
+                    };
+
+                    // handle relative-addressed instructions
+                    if INST_ADDR_RELATIVE.contains(&inst.mnemonic) {
+                        encoded |= unsafe {
+                            transmute::<i32, u32>((*label as i32 - (addr as i32 + 4)) >> 2)
+                        };
+                    } else {
+                        encoded |= *label as u32 >> 2;
                     }
+
                     self.mem.set_pos(addr);
                     self.mem.write_u32::<BE>(encoded)?;
                 }
