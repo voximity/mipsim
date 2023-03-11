@@ -1,11 +1,11 @@
 use egui::Color32;
 
 use crate::{
+    app::highlighting::highlight,
     assembler::{
         inst::INST_MNEMONICS,
         lexer::{Lexeme, LexemeKind},
     },
-    highlighting::highlight,
     App,
 };
 
@@ -60,7 +60,7 @@ impl Editor {
                 painter.rect_filled(
                     row.rect.translate(editor.text_draw_pos.to_vec2()),
                     0.0,
-                    Color32::from_rgba_premultiplied(255, 0, 0, 10),
+                    Color32::from_rgba_unmultiplied(255, 0, 0, 20),
                 );
             }
         }
