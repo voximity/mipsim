@@ -11,6 +11,7 @@ pub struct Processor {
     pub regs: Registers,
     pub mem: Memory,
     pub pc: usize,
+    pub loaded: bool,
 }
 
 impl Default for Processor {
@@ -30,7 +31,15 @@ impl Processor {
             regs: Registers::default(),
             mem: Memory::new(),
             pc: ADDR_TEXT,
+            loaded: false,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.regs = Registers::default();
+        self.mem = Memory::new();
+        self.pc = ADDR_TEXT;
+        self.loaded = false;
     }
 
     pub fn step(&mut self) -> io::Result<()> {

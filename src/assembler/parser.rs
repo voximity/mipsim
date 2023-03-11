@@ -36,9 +36,15 @@ pub enum ParseError<'a> {
     UnknownRegister(&'a Lexeme),
 }
 
+#[derive(Debug, Clone)]
+pub struct Node<'a> {
+    pub kind: NodeKind<'a>,
+    pub lexeme: &'a Lexeme,
+}
+
 /// A node in the assembly tree.
 #[derive(Debug, Clone)]
-pub enum Node<'a> {
+pub enum NodeKind<'a> {
     /// An R-type instruction call.
     InstR {
         inst: &'static Inst,
@@ -78,9 +84,6 @@ pub enum Node<'a> {
 pub enum NodeImm<'a> {
     /// A literal half.
     Half(u16),
-
-    /// A literal word.
-    Word(u32),
 
     /// An address. Will be shifted right two bits by the assembler.
     Addr(u32),
@@ -254,7 +257,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&'a self) -> Result<Vec<Node<'a>>, ParseError<'a>> {
-        let mut nodes = vec![];
+        let mut nodes: Vec<Node<'a>> = vec![];
 
         while let Some((lexeme, slice)) = self.next() {
             #[allow(clippy::single_match)]
@@ -263,33 +266,56 @@ impl<'a> Parser<'a> {
                 LexemeKind::Sect => {
                     let name = &slice[1..];
                     match name {
-                        "data" => nodes.push(Node::Section(Section::Data)),
-                        "text" => nodes.push(Node::Section(Section::Text)),
+                        "data" => nodes.push(Node {
+                            lexeme,
+                            kind: NodeKind::Section(Section::Data),
+                        }),
+                        "text" => nodes.push(Node {
+                            lexeme,
+                            kind: NodeKind::Section(Section::Text),
+                        }),
 
                         // TODO: it is assumed that each of these are unsigned
-                        "byte" => nodes.push(Node::Directive(Directive::Byte(self.parse_u8()?))),
-                        "half" => nodes.push(Node::Directive(Directive::Half(self.parse_u16()?))),
-                        "word" => nodes.push(Node::Directive(Directive::Word(self.parse_u32()?))),
+                        "byte" => nodes.push(Node {
+                            lexeme,
+                            kind: NodeKind::Directive(Directive::Byte(self.parse_u8()?)),
+                        }),
+                        "half" => nodes.push(Node {
+                            lexeme,
+                            kind: NodeKind::Directive(Directive::Half(self.parse_u16()?)),
+                        }),
+                        "word" => nodes.push(Node {
+                            lexeme,
+                            kind: NodeKind::Directive(Directive::Word(self.parse_u32()?)),
+                        }),
 
-                        "asciiz" => {
-                            nodes.push(Node::Directive(Directive::Asciiz(self.parse_string()?)))
-                        }
-                        "stringz" => {
-                            nodes.push(Node::Directive(Directive::Stringz(self.parse_string()?)))
-                        }
+                        "asciiz" => nodes.push(Node {
+                            lexeme,
+                            kind: NodeKind::Directive(Directive::Asciiz(self.parse_string()?)),
+                        }),
+                        "stringz" => nodes.push(Node {
+                            lexeme,
+                            kind: NodeKind::Directive(Directive::Stringz(self.parse_string()?)),
+                        }),
 
-                        "align" => nodes.push(Node::Directive(Directive::Align(self.parse_u8()?))),
+                        "align" => nodes.push(Node {
+                            lexeme,
+                            kind: NodeKind::Directive(Directive::Align(self.parse_u8()?)),
+                        }),
 
                         _ => return Err(ParseError::UnknownSectDirective(name)),
                     };
                 }
 
                 // labels
-                LexemeKind::Label => nodes.push(Node::Label(
-                    slice
-                        .strip_suffix(':')
-                        .expect("lexer gave bad input to parser"),
-                )),
+                LexemeKind::Label => nodes.push(Node {
+                    lexeme,
+                    kind: NodeKind::Label(
+                        slice
+                            .strip_suffix(':')
+                            .expect("lexer gave bad input to parser"),
+                    ),
+                }),
 
                 // instructions
                 LexemeKind::Inst => {
@@ -368,16 +394,19 @@ impl<'a> Parser<'a> {
                         }
                     }
 
-                    nodes.push(match inst.ty {
-                        InstType::R => Node::InstR {
-                            inst,
-                            rs,
-                            rt,
-                            rd,
-                            shamt,
+                    nodes.push(Node {
+                        lexeme,
+                        kind: match inst.ty {
+                            InstType::R => NodeKind::InstR {
+                                inst,
+                                rs,
+                                rt,
+                                rd,
+                                shamt,
+                            },
+                            InstType::I | InstType::Ils => NodeKind::InstI { inst, rs, rt, imm },
+                            InstType::J => NodeKind::InstJ { inst, addr: imm },
                         },
-                        InstType::I | InstType::Ils => Node::InstI { inst, rs, rt, imm },
-                        InstType::J => Node::InstJ { inst, addr: imm },
                     });
                 }
 

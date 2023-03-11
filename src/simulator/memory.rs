@@ -35,10 +35,6 @@ impl Memory {
         self.pos = pos;
     }
 
-    pub fn skip(&mut self, bytes: usize) {
-        self.pos += bytes;
-    }
-
     pub fn align(&mut self, bytes: usize) {
         self.pos += bytes - self.pos % bytes;
     }

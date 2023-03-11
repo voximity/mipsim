@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use assembler::parser::Parser;
 use editor::Editor;
@@ -35,6 +35,7 @@ pub struct App {
 
     // simulator
     processor: Processor,
+    pc_line_map: Option<HashMap<usize, u32>>,
 }
 
 impl App {
@@ -133,23 +134,6 @@ impl eframe::App for App {
                 });
 
                 ui.menu_button("Run", |ui| {
-                    // if ui.button("Parse test").clicked() {
-                    //     match Parser::new(&self.body).parse() {
-                    //         Ok(v) => self
-                    //             .output
-                    //             .log
-                    //             .tx
-                    //             .send(format!("Parse result: {v:#?}"))
-                    //             .unwrap(),
-                    //         Err(e) => self
-                    //             .output
-                    //             .log
-                    //             .tx
-                    //             .send(format!("Error while parsing: {e}"))
-                    //             .unwrap(),
-                    //     };
-                    // }
-
                     if ui.button("Assemble and Load").clicked() {
                         let parser = Parser::new(&self.body);
                         let parsed = match parser.parse() {
@@ -170,9 +154,11 @@ impl eframe::App for App {
                             .send("Parsed, loading into the processor...".into())
                             .unwrap();
 
-                        self.processor
-                            .load(&parsed)
-                            .expect("failed to load into processor");
+                        self.pc_line_map = Some(
+                            self.processor
+                                .load(&parsed)
+                                .expect("failed to load into processor"),
+                        );
 
                         self.output
                             .log
@@ -181,7 +167,15 @@ impl eframe::App for App {
                             .unwrap();
                     }
 
+                    if ui.button("Reset").clicked() {
+                        self.processor.reset();
+                    }
+
                     if ui.button("Step").clicked() {
+                        if !self.processor.loaded {
+                            return;
+                        }
+
                         self.processor.step().expect("failed to step processor");
                         self.output
                             .log

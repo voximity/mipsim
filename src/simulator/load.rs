@@ -8,10 +8,10 @@ use byteorder::{ReadBytesExt, WriteBytesExt, BE};
 
 use crate::assembler::{
     inst::INST_ADDR_RELATIVE,
-    parser::{Directive, Node, NodeImm, Section},
+    parser::{Directive, Node, NodeImm, NodeKind, Section},
 };
 
-use super::{Memory, Processor, Registers, ADDR_STATIC, ADDR_TEXT};
+use super::{Processor, ADDR_STATIC, ADDR_TEXT};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -24,50 +24,56 @@ pub enum AssembleError<'a> {
 
 impl Processor {
     /// Load a program into the processor's memory.
-    pub fn load<'a>(&mut self, parsed: &[Node<'a>]) -> Result<(), AssembleError<'a>> {
-        self.regs = Registers::default();
-        self.mem = Memory::new();
-        self.pc = ADDR_TEXT;
+    ///
+    /// Returns a map from PC address to line number.
+    pub fn load<'a>(
+        &mut self,
+        parsed: &[Node<'a>],
+    ) -> Result<HashMap<usize, u32>, AssembleError<'a>> {
+        self.reset();
 
         let mut labels = HashMap::new();
         let mut nodes_with_labels: Vec<(usize, &Node<'a>)> = vec![];
+        let mut addr_lines = vec![];
 
         for node in parsed.iter() {
-            match node {
-                Node::Section(sec) => {
+            match &node.kind {
+                NodeKind::Section(sec) => {
                     match sec {
                         Section::Data => self.mem.seek(SeekFrom::Start(ADDR_STATIC as u64))?,
                         Section::Text => self.mem.seek(SeekFrom::Start(ADDR_TEXT as u64))?,
                     };
                 }
 
-                Node::Label(label) => {
+                NodeKind::Label(label) => {
                     labels.insert(label, self.mem.pos());
                 }
 
-                Node::Directive(Directive::Byte(byte)) => self.mem.write_u8(*byte)?,
-                Node::Directive(Directive::Half(half)) => self.mem.write_u16::<BE>(*half)?,
-                Node::Directive(Directive::Word(word)) => self.mem.write_u32::<BE>(*word)?,
-                Node::Directive(Directive::Asciiz(string)) => {
+                NodeKind::Directive(Directive::Byte(byte)) => self.mem.write_u8(*byte)?,
+                NodeKind::Directive(Directive::Half(half)) => self.mem.write_u16::<BE>(*half)?,
+                NodeKind::Directive(Directive::Word(word)) => self.mem.write_u32::<BE>(*word)?,
+                NodeKind::Directive(Directive::Asciiz(string)) => {
                     self.mem.write_all(string.as_bytes())?;
                     self.mem.write_u8(0)?;
                 }
-                Node::Directive(Directive::Stringz(string)) => {
+                NodeKind::Directive(Directive::Stringz(string)) => {
                     self.mem.write_all(string.as_bytes())?;
                     self.mem.write_u8(0)?;
                     self.mem.align(4);
                 }
-                Node::Directive(Directive::Align(pow)) => {
+                NodeKind::Directive(Directive::Align(pow)) => {
                     self.mem.align(2usize.pow(*pow as u32));
                 }
 
-                Node::InstR {
+                NodeKind::InstR {
                     inst,
                     rs,
                     rt,
                     rd,
                     shamt,
                 } => {
+                    addr_lines.push((self.mem.pos(), node.lexeme.line));
+
                     let encoded = (inst.opcode as u32) << 26
                         | (*rs as u32) << 21
                         | (*rt as u32) << 16
@@ -78,14 +84,16 @@ impl Processor {
                     self.mem.write_u32::<BE>(encoded)?;
                 }
 
-                Node::InstI { inst, rs, rt, imm } => {
+                NodeKind::InstI { inst, rs, rt, imm } => {
+                    addr_lines.push((self.mem.pos(), node.lexeme.line));
+
                     let mut encoded =
                         (inst.opcode as u32) << 26 | (*rs as u32) << 21 | (*rt as u32) << 16;
 
                     match imm {
                         // TODO: this may overflow the other register data
                         NodeImm::Half(half) => encoded |= *half as u32,
-                        NodeImm::Word(word) => encoded |= *word as u16 as u32,
+                        // NodeImm::Word(word) => encoded |= *word as u16 as u32,
                         NodeImm::Addr(addr) => encoded |= *addr as u16 as u32 >> 2,
                         NodeImm::Label(_) => {
                             nodes_with_labels.push((self.mem.pos(), node));
@@ -95,13 +103,15 @@ impl Processor {
                     self.mem.write_u32::<BE>(encoded)?;
                 }
 
-                Node::InstJ { inst, addr } => {
+                NodeKind::InstJ { inst, addr } => {
+                    addr_lines.push((self.mem.pos(), node.lexeme.line));
+
                     let mut encoded = (inst.opcode as u32) << 26;
 
                     match addr {
                         // TODO: this may overflow the opcode
                         NodeImm::Half(half) => encoded |= *half as u32 >> 2,
-                        NodeImm::Word(word) => encoded |= *word >> 2,
+                        // NodeImm::Word(word) => encoded |= *word >> 2,
                         NodeImm::Addr(addr) => encoded |= *addr >> 2,
                         NodeImm::Label(_) => {
                             nodes_with_labels.push((self.mem.pos(), node));
@@ -114,9 +124,9 @@ impl Processor {
         }
 
         for (addr, node) in nodes_with_labels {
-            match node {
-                Node::InstI { inst, imm, .. }
-                | Node::InstJ {
+            match &node.kind {
+                NodeKind::InstI { inst, imm, .. }
+                | NodeKind::InstJ {
                     inst, addr: imm, ..
                 } => {
                     self.mem.set_pos(addr);
@@ -145,6 +155,7 @@ impl Processor {
             }
         }
 
-        Ok(())
+        self.loaded = true;
+        Ok(addr_lines.into_iter().collect())
     }
 }

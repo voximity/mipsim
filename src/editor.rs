@@ -1,3 +1,5 @@
+use egui::Color32;
+
 use crate::{
     assembler::{
         inst::INST_MNEMONICS,
@@ -15,6 +17,7 @@ impl Editor {
             Lexeme {
                 kind: LexemeKind::Inst,
                 ref slice,
+                ..
             } => &app.body[slice.clone()],
             _ => return,
         };
@@ -44,6 +47,22 @@ impl Editor {
 
         if editor.response.changed() {
             app.unsaved = true;
+        }
+
+        if app.processor.loaded {
+            if let Some(row) = app
+                .pc_line_map
+                .as_ref()
+                .and_then(|map| map.get(&app.processor.pc).copied())
+                .and_then(|idx| editor.galley.rows.get(idx as usize))
+            {
+                let painter = ui.painter_at(editor.response.rect);
+                painter.rect_filled(
+                    row.rect.translate(editor.text_draw_pos.to_vec2()),
+                    0.0,
+                    Color32::from_rgba_premultiplied(255, 0, 0, 10),
+                );
+            }
         }
 
         // lexeme hovering

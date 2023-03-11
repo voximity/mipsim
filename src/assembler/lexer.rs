@@ -5,6 +5,7 @@ use crate::util::IndexedChars;
 #[derive(Default, Debug, Clone)]
 pub struct Lexeme {
     pub slice: Range<usize>,
+    pub line: u32,
     pub kind: LexemeKind,
 }
 
@@ -82,17 +83,25 @@ impl<'a> Lexer<'a> {
         res
     }
 
-    fn append_or_add_lexeme(&mut self, lexemes: &mut Vec<Lexeme>, idx: usize, kind: LexemeKind) {
+    fn append_or_add_lexeme(
+        &mut self,
+        lexemes: &mut Vec<Lexeme>,
+        idx: usize,
+        line: u32,
+        kind: LexemeKind,
+    ) {
         match lexemes.last_mut() {
             Some(Lexeme {
                 kind: top_kind,
                 ref mut slice,
+                ..
             }) if *top_kind == kind => {
                 slice.end = self.chars.peek_boundary();
             }
             _ => {
                 lexemes.push(Lexeme {
                     kind,
+                    line,
                     slice: idx..self.chars.peek_boundary(),
                 });
             }
@@ -101,7 +110,7 @@ impl<'a> Lexer<'a> {
 
     pub fn lex(mut self) -> Vec<Lexeme> {
         let mut lexemes = vec![];
-        let mut _line = 0;
+        let mut line = 0u32;
         let mut line_has_inst = false;
 
         while let Some((idx, c)) = self.chars.next() {
@@ -112,6 +121,7 @@ impl<'a> Lexer<'a> {
                     if self.comments {
                         lexemes.push(Lexeme {
                             slice,
+                            line,
                             kind: LexemeKind::Comment,
                         });
                     }
@@ -121,6 +131,7 @@ impl<'a> Lexer<'a> {
                 '.' if self.peek_is(char::is_alphabetic) => {
                     lexemes.push(Lexeme {
                         slice: self.take_while(idx, char::is_alphabetic),
+                        line,
                         kind: LexemeKind::Sect,
                     });
                 }
@@ -128,6 +139,7 @@ impl<'a> Lexer<'a> {
                 // registers
                 '$' => lexemes.push(Lexeme {
                     slice: self.take_while(idx, char::is_alphanumeric),
+                    line,
                     kind: LexemeKind::Reg,
                 }),
 
@@ -142,6 +154,7 @@ impl<'a> Lexer<'a> {
 
                         lexemes.push(Lexeme {
                             slice,
+                            line,
                             kind: LexemeKind::Label,
                         });
                     } else if line_has_inst {
@@ -149,6 +162,7 @@ impl<'a> Lexer<'a> {
                         // label reference
                         lexemes.push(Lexeme {
                             slice,
+                            line,
                             kind: LexemeKind::Label,
                         });
                     } else {
@@ -156,6 +170,7 @@ impl<'a> Lexer<'a> {
                         line_has_inst = true;
                         lexemes.push(Lexeme {
                             slice,
+                            line,
                             kind: LexemeKind::Inst,
                         });
                     }
@@ -163,6 +178,7 @@ impl<'a> Lexer<'a> {
 
                 '-' if self.peek_is(char::is_numeric) => lexemes.push(Lexeme {
                     slice: self.take_while(idx, char::is_numeric),
+                    line,
                     kind: LexemeKind::Imm,
                 }),
 
@@ -176,11 +192,13 @@ impl<'a> Lexer<'a> {
                             slice: self.take_while(idx, |ref c| {
                                 c.is_numeric() || ('a'..='f').contains(c) || ('A'..='F').contains(c)
                             }),
+                            line,
                             kind: LexemeKind::Imm,
                         })
                     } else {
                         lexemes.push(Lexeme {
                             slice: self.take_while(idx, char::is_numeric),
+                            line,
                             kind: LexemeKind::Imm,
                         });
                     }
@@ -213,24 +231,25 @@ impl<'a> Lexer<'a> {
 
                             true
                         }),
+                        line,
                         kind: LexemeKind::Imm,
                     });
                 }
 
                 // whitespace
                 _ if c.is_whitespace() => {
-                    if c == '\n' {
-                        _line += 1;
-                        line_has_inst = false;
+                    if self.whitespace {
+                        self.append_or_add_lexeme(&mut lexemes, idx, line, LexemeKind::Whitespace);
                     }
 
-                    if self.whitespace {
-                        self.append_or_add_lexeme(&mut lexemes, idx, LexemeKind::Whitespace);
+                    if c == '\n' {
+                        line += 1;
+                        line_has_inst = false;
                     }
                 }
 
                 // catch all other characters into a Punct lexeme
-                _ => self.append_or_add_lexeme(&mut lexemes, idx, LexemeKind::Punct),
+                _ => self.append_or_add_lexeme(&mut lexemes, idx, line, LexemeKind::Punct),
             }
         }
 
@@ -245,11 +264,12 @@ impl<'a> Lexer<'a> {
                 // registers
                 '$' => lexemes.push(Lexeme {
                     slice: self.take_while(idx, char::is_alphanumeric),
+                    line: 0,
                     kind: LexemeKind::Reg,
                 }),
 
                 // catch all other characters into a Punct lexeme
-                _ => self.append_or_add_lexeme(&mut lexemes, idx, LexemeKind::Punct),
+                _ => self.append_or_add_lexeme(&mut lexemes, idx, 0, LexemeKind::Punct),
             }
         }
 
