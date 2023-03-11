@@ -1,6 +1,6 @@
 use crate::{
     assembler::{
-        inst::INSTRUCTIONS,
+        inst::INST_MNEMONICS,
         lexer::{Lexeme, LexemeKind},
     },
     highlighting::highlight,
@@ -19,7 +19,7 @@ impl Editor {
             _ => return,
         };
 
-        let inst_def = match INSTRUCTIONS.get(value) {
+        let inst_def = match INST_MNEMONICS.get(value) {
             Some(def) => def,
             None => return,
         };

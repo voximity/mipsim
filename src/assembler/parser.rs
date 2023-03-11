@@ -5,7 +5,7 @@ use thiserror::Error;
 use crate::simulator::Registers;
 
 use super::{
-    inst::{Inst, InstArg, InstType, INSTRUCTIONS},
+    inst::{Inst, InstArg, InstType, INST_MNEMONICS},
     lexer::{Lexeme, LexemeKind, Lexer},
 };
 
@@ -293,7 +293,7 @@ impl<'a> Parser<'a> {
 
                 // instructions
                 LexemeKind::Inst => {
-                    let inst = INSTRUCTIONS
+                    let inst = INST_MNEMONICS
                         .get(slice)
                         .ok_or(ParseError::UnknownInstruction(slice))?;
                     let ty_ils = matches!(inst.ty, InstType::Ils);

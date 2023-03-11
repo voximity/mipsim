@@ -1,8 +1,10 @@
-use std::mem::transmute;
+use std::io;
 
-use egui_extras::{Column, TableBuilder};
+use byteorder::{ReadBytesExt, BE};
 
-use super::{Memory, ADDR_TEXT};
+use crate::assembler::inst::{Inst, InstType, INST_OPCODE_FUNC};
+
+use super::{registers::Registers, Memory, ADDR_TEXT};
 
 #[derive(Debug)]
 pub struct Processor {
@@ -13,106 +15,158 @@ pub struct Processor {
 
 impl Default for Processor {
     fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor {
+    pub fn new() -> Self {
         Self {
             regs: Registers::default(),
             mem: Memory::new(),
             pc: ADDR_TEXT,
         }
     }
-}
 
-#[derive(Debug, Default)]
-pub struct Registers {
-    pub data: [Register; 32],
-}
+    pub fn step(&mut self) -> io::Result<()> {
+        // TODO: use the UI logging
 
-impl Registers {
-    #[rustfmt::skip]
-    pub const fn name(i: usize) -> &'static str {
-        match i {
-            0 => "zero",
-            1 => "at",
-            2 => "v0", 3 => "v1",
-            4 => "a0", 5 => "a1", 6 => "a2", 7 => "a3",
-            8 => "t0", 9 => "t1", 10 => "t2", 11 => "t3",
-            12 => "t4", 13 => "t5", 14 => "t6", 15 => "t7",
-            16 => "s0", 17 => "s1", 18 => "s2", 19 => "s3",
-            20 => "s4", 21 => "s5", 22 => "s6", 23 => "s7",
-            24 => "t8", 25 => "t9",
-            26 => "k0", 27 => "k1",
-            28 => "gp",
-            29 => "sp",
-            30 => "fp",
-            31 => "ra",
-            _ => panic!("invalid register index"),
+        self.mem.set_pos(self.pc);
+        let data = self.mem.read_u32::<BE>()?;
+        let opcode = (data >> 26) as u8;
+
+        match opcode {
+            // R-type
+            0x00 => {
+                let func = (data & 0x3f) as u8;
+                let inst = match INST_OPCODE_FUNC.get(&(0x00, func)) {
+                    Some(inst) => inst,
+                    None => {
+                        println!("unknown R-type func {func}");
+                        return Ok(());
+                    }
+                };
+
+                self.call_rtype(data, inst);
+            }
+
+            // I- or J-type
+            _ => {
+                let inst = match INST_OPCODE_FUNC.get(&(opcode, 0x00)) {
+                    Some(inst) => inst,
+                    None => {
+                        println!("unknown I- or J-type opcode {opcode}");
+                        return Ok(());
+                    }
+                };
+
+                match inst.ty {
+                    InstType::I | InstType::Ils => self.call_itype(data, inst),
+                    InstType::J => self.call_jtype(data, inst),
+                    _ => unreachable!(),
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn call_rtype(&mut self, encoded: u32, inst: &'static Inst) {
+        let rs = ((encoded >> 21) & 0x1f) as u8;
+        let rt = ((encoded >> 16) & 0x1f) as u8;
+        let rd = ((encoded >> 11) & 0x1f) as u8;
+        let shamt = ((encoded >> 6) & 0x1f) as u8;
+        let mut inc_pc = true;
+
+        match inst.func {
+            // add
+            0x20 => self
+                .regs
+                .set_i32(rd, self.regs.get_i32(rs) + self.regs.get_i32(rt)),
+
+            // addu
+            0x21 => self
+                .regs
+                .set_u32(rd, self.regs.get_u32(rs) + self.regs.get_u32(rt)),
+
+            // and
+            0x24 => self
+                .regs
+                .set_u32(rd, self.regs.get_u32(rs) & self.regs.get_u32(rt)),
+
+            // nor
+            0x27 => self
+                .regs
+                .set_u32(rd, !(self.regs.get_u32(rs) | self.regs.get_u32(rt))),
+
+            // or
+            0x25 => self
+                .regs
+                .set_u32(rd, self.regs.get_u32(rs) | self.regs.get_u32(rt)),
+
+            // slt
+            0x2a => self.regs.set_i32(
+                rd,
+                if self.regs.get_i32(rs) < self.regs.get_i32(rt) {
+                    1
+                } else {
+                    0
+                },
+            ),
+
+            // sltu
+            0x2b => self.regs.set_u32(
+                rd,
+                if self.regs.get_u32(rs) < self.regs.get_u32(rt) {
+                    1
+                } else {
+                    0
+                },
+            ),
+
+            // sll
+            0x00 => self.regs.set_u32(rd, self.regs.get_u32(rs) << shamt as u32),
+
+            // sra
+            0x03 => self.regs.set_i32(rd, self.regs.get_i32(rs) >> shamt as i32),
+
+            // srl
+            0x02 => self.regs.set_u32(rd, self.regs.get_u32(rs) >> shamt as u32),
+
+            // sub
+            0x22 => self
+                .regs
+                .set_u32(rd, self.regs.get_u32(rs) - self.regs.get_u32(rt)),
+
+            // xor
+            0x26 => self
+                .regs
+                .set_u32(rd, self.regs.get_u32(rs) ^ self.regs.get_u32(rt)),
+
+            // jr
+            0x08 => {
+                self.pc = self.regs.get_u32(rs) as usize;
+                inc_pc = false;
+            }
+
+            // syscall
+            0x0c => {
+                todo!();
+            }
+
+            _ => unreachable!(),
+        }
+
+        if inc_pc {
+            self.pc += 4;
         }
     }
 
-    #[rustfmt::skip]
-    pub fn index(s: &str) -> Option<usize> {
-        Some(match s {
-            "zero" => 0,
-            "at" => 1,
-            "v0" => 2, "v1" => 3,
-            "a0" => 4, "a1" => 5, "a2" => 6, "a3" => 7,
-            "t0" => 8, "t1" => 9, "t2" => 10, "t3" => 11,
-            "t4" => 12, "t5" => 13, "t6" => 14, "t7" => 15,
-            "s0" => 16, "s1" => 17, "s2" => 18, "s3" => 19,
-            "s4" => 20, "s5" => 21, "s6" => 22, "s7" => 23,
-            "t8" => 24, "t9" => 25,
-            "k0" => 26, "k1" => 27,
-            "gp" => 28,
-            "sp" => 29,
-            "fp" => 30,
-            "ra" => 31,
-            _ => s.parse().ok()?
-        })
+    pub fn call_itype(&mut self, encoded: u32, inst: &'static Inst) {
+        // ...
     }
 
-    pub fn show(&self, ui: &mut egui::Ui) {
-        TableBuilder::new(ui)
-            .column(Column::auto().at_least(60.0).resizable(false))
-            .column(Column::auto().at_least(30.0).resizable(false))
-            .column(Column::remainder().resizable(false))
-            .striped(true)
-            .header(20.0, |mut header| {
-                header.col(|ui| {
-                    ui.strong("Register");
-                });
-                header.col(|ui| {
-                    ui.strong("Num.");
-                });
-                header.col(|ui| {
-                    ui.strong("Value");
-                });
-            })
-            .body(|body| {
-                body.rows(14.0, 32, |i, mut row| {
-                    row.col(|ui| {
-                        ui.monospace(format!("${}", Self::name(i)));
-                    });
-                    row.col(|ui| {
-                        ui.monospace(format!("{i}"));
-                    });
-                    row.col(|ui| {
-                        ui.label(format!("{}", self.data[i].0));
-                    });
-                })
-            })
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-#[repr(transparent)]
-pub struct Register(u32);
-
-impl Register {
-    pub fn to_i32(self) -> i32 {
-        // SAFETY: i32 and u32 share a size
-        unsafe { transmute(self.0) }
-    }
-
-    pub fn to_f32(self) -> f32 {
-        f32::from_bits(self.0)
+    pub fn call_jtype(&mut self, encoded: u32, inst: &'static Inst) {
+        // ...
     }
 }

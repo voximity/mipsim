@@ -180,8 +180,8 @@ impl FromStr for InstArg {
 macro_rules! instructions {
     { $( $mnemonic:literal $name:literal ($ty:ident, $op:literal/$func:literal) : $desc:literal => [$($arg:ident),*] ),*, } => {
         lazy_static! {
-            pub static ref INSTRUCTIONS: HashMap<&'static str, Inst> = vec![
-                $(($mnemonic, Inst {
+            pub static ref INSTRUCTIONS: Vec<Inst> = vec![
+                $(Inst {
                     mnemonic: $mnemonic,
                     name: $name,
                     ty: InstType::$ty,
@@ -189,8 +189,14 @@ macro_rules! instructions {
                     args: [$(InstArg::$arg,)*],
                     opcode: $op,
                     func: $func,
-                }),)*
-            ].into_iter().collect();
+                },)*
+            ];
+
+            pub static ref INST_MNEMONICS: HashMap<&'static str, &'static Inst> =
+                INSTRUCTIONS.iter().map(|i| (i.mnemonic, i)).collect();
+
+            pub static ref INST_OPCODE_FUNC: HashMap<(u8, u8), &'static Inst> =
+                INSTRUCTIONS.iter().map(|i| ((i.opcode, i.func), i)).collect();
         }
     }
 }
@@ -223,7 +229,7 @@ instructions! {
     "xor"    "XOR"                              (R, 0x00/0x26): "Performs $rd = $rs ^ $rt." => [Rd, Rs, Rt],
 
     //                                              treated the same as lw
-    "la"     "Load Address"                     (I, 0x23/0x00): "Loads $mem($imm) into $rt." => [Rt, SImm, None],
+    // "la"     "Load Address"                     (I, 0x23/0x00): "Loads $mem($imm) into $rt." => [Rt, SImm, None],
     "lbu"    "Load Byte Unsigned"               (Ils, 0x24/0x00): "Loads $mem($rs + $imm) into $rt." => [Rt, SImm, Rs],
     "lhu"    "Load Half Unsigned"               (Ils, 0x25/0x00): "Loads two bytes at $mem($rs + $imm) into $rt." => [Rt, SImm, Rs],
     "lw"     "Load Word"                        (Ils, 0x23/0x00): "Loads a word at $mem($rs + $imm) into $rt." => [Rt, SImm, Rs],
@@ -233,8 +239,8 @@ instructions! {
 
     "beq"    "Branch on Equal"                  (I, 0x04/0x00): "If $rt == $rs, branch to $imm." => [Rt, Rs, SImm],
     "bne"    "Branch on Not Equal"              (I, 0x05/0x00): "If $rt != $rs, branch to $imm." => [Rt, Rs, SImm],
-    "j"      "Jump"                             (J, 0x02/0x00): "Jump to $imm." => [Addr, None, None],
-    "jal"    "Jump and Link"                    (J, 0x03/0x00): "Set $ra to $pc, then jump to $imm." => [Addr, None, None],
+    "j"      "Jump"                             (J, 0x02/0x00): "Jump to $addr." => [Addr, None, None],
+    "jal"    "Jump and Link"                    (J, 0x03/0x00): "Set $ra to $pc, then jump to $addr." => [Addr, None, None],
     "jr"     "Jump Register"                    (R, 0x00/0x08): "Jump to the address specified by $rs." => [Rs, None, None],
     "syscall" "System Call"                     (R, 0x00/0x0c): "Perform a system call." => [None, None, None],
 }

@@ -67,7 +67,7 @@ impl Processor {
                     let encoded = (inst.opcode as u32) << 26
                         | (*rs as u32) << 21
                         | (*rt as u32) << 16
-                        | (*rd as u32) << 1
+                        | (*rd as u32) << 11
                         | (*shamt as u32) << 6
                         | (inst.func as u32);
 
