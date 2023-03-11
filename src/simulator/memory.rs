@@ -124,6 +124,7 @@ impl Write for Memory {
             written += slice.len();
         }
 
+        self.pos += written;
         Ok(written)
     }
 

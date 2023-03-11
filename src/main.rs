@@ -118,7 +118,10 @@ impl eframe::App for App {
                         }
                     }
 
-                    if ui.button("Save...").clicked() {
+                    if ui
+                        .add(egui::Button::new("Save...").shortcut_text("Ctrl+S"))
+                        .clicked()
+                    {
                         ui.close_menu();
                         self.save_file(false, frame).expect("failed to save file");
                     }
@@ -129,25 +132,65 @@ impl eframe::App for App {
                     }
                 });
 
-                ui.menu_button("Assemble", |ui| {
-                    if ui.button("Parse test").clicked() {
-                        match Parser::new(&self.body).parse() {
-                            Ok(v) => self
-                                .output
-                                .log
-                                .tx
-                                .send(format!("Parse result: {v:#?}"))
-                                .unwrap(),
-                            Err(e) => self
-                                .output
-                                .log
-                                .tx
-                                .send(format!("Error while parsing: {e}"))
-                                .unwrap(),
+                ui.menu_button("Run", |ui| {
+                    // if ui.button("Parse test").clicked() {
+                    //     match Parser::new(&self.body).parse() {
+                    //         Ok(v) => self
+                    //             .output
+                    //             .log
+                    //             .tx
+                    //             .send(format!("Parse result: {v:#?}"))
+                    //             .unwrap(),
+                    //         Err(e) => self
+                    //             .output
+                    //             .log
+                    //             .tx
+                    //             .send(format!("Error while parsing: {e}"))
+                    //             .unwrap(),
+                    //     };
+                    // }
+
+                    if ui.button("Assemble and Load").clicked() {
+                        let parser = Parser::new(&self.body);
+                        let parsed = match parser.parse() {
+                            Ok(v) => v,
+                            Err(e) => {
+                                self.output
+                                    .log
+                                    .tx
+                                    .send(format!("Parse error: {e}"))
+                                    .unwrap();
+                                return;
+                            }
                         };
+
+                        self.output
+                            .log
+                            .tx
+                            .send("Parsed, loading into the processor...".into())
+                            .unwrap();
+
+                        self.processor
+                            .load(&parsed)
+                            .expect("failed to load into processor");
+
+                        self.output
+                            .log
+                            .tx
+                            .send("Loaded into processor".into())
+                            .unwrap();
+                    }
+
+                    if ui.button("Step").clicked() {
+                        self.processor.step().expect("failed to step processor");
+                        self.output
+                            .log
+                            .tx
+                            .send(format!("Stepped processor, new PC: {}", self.processor.pc))
+                            .unwrap();
                     }
                 });
-            })
+            });
         });
 
         egui::SidePanel::right("panel_registers")

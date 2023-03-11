@@ -11,7 +11,7 @@ use crate::assembler::{
     parser::{Directive, Node, NodeImm, Section},
 };
 
-use super::{Processor, ADDR_STATIC, ADDR_TEXT};
+use super::{Memory, Processor, Registers, ADDR_STATIC, ADDR_TEXT};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -25,6 +25,10 @@ pub enum AssembleError<'a> {
 impl Processor {
     /// Load a program into the processor's memory.
     pub fn load<'a>(&mut self, parsed: &[Node<'a>]) -> Result<(), AssembleError<'a>> {
+        self.regs = Registers::default();
+        self.mem = Memory::new();
+        self.pc = ADDR_TEXT;
+
         let mut labels = HashMap::new();
         let mut nodes_with_labels: Vec<(usize, &Node<'a>)> = vec![];
 

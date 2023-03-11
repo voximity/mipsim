@@ -2,9 +2,20 @@ use std::mem::transmute;
 
 use egui_extras::{Column, TableBuilder};
 
-#[derive(Debug, Default)]
+use super::{ADDR_HEAP, ADDR_STACK_TOP};
+
+#[derive(Debug)]
 pub struct Registers {
     pub data: [Register; 32],
+}
+
+impl Default for Registers {
+    fn default() -> Self {
+        let mut data = [Register(0); 32];
+        data[28] = Register(unsafe { transmute(ADDR_HEAP as u32) });
+        data[29] = Register(unsafe { transmute(ADDR_STACK_TOP as u32) });
+        Self { data }
+    }
 }
 
 impl Registers {
@@ -58,10 +69,6 @@ impl Registers {
         self.data[index as usize] = unsafe { transmute(value) };
     }
 
-    pub fn get(&self, index: u8) -> Register {
-        self.data[index as usize]
-    }
-
     pub fn get_i32(&self, index: u8) -> i32 {
         self.data[index as usize].0
     }
@@ -96,7 +103,7 @@ impl Registers {
                         ui.monospace(format!("{i}"));
                     });
                     row.col(|ui| {
-                        ui.label(format!("{}", self.data[i].0));
+                        ui.label(format!("0x{:08x}", self.data[i].0));
                     });
                 })
             })
@@ -111,9 +118,5 @@ impl Register {
     pub fn to_u32(self) -> u32 {
         // SAFETY: i32 and u32 share a size
         unsafe { transmute(self.0) }
-    }
-
-    pub fn to_f32(self) -> f32 {
-        f32::from_bits(self.to_u32())
     }
 }

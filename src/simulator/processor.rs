@@ -266,7 +266,8 @@ impl Processor {
             0x04 => {
                 if self.regs.get_u32(rt) == self.regs.get_u32(rs) {
                     inc_pc = false;
-                    self.pc = ((imm as u32) << 2) as usize + 4;
+                    self.pc =
+                        (self.pc as isize + 4 + ((to_signed_imm(imm) as isize) << 2)) as usize;
                 }
             }
 
@@ -274,7 +275,8 @@ impl Processor {
             0x05 => {
                 if self.regs.get_u32(rt) != self.regs.get_u32(rs) {
                     inc_pc = false;
-                    self.pc = ((imm as u32) << 2) as usize + 4;
+                    self.pc =
+                        (self.pc as isize + 4 + ((to_signed_imm(imm) as isize) << 2)) as usize;
                 }
             }
 
