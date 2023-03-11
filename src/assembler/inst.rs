@@ -225,7 +225,7 @@ instructions! {
     "sra"    "Shift Right Arithmetic"           (R, 0x00/0x03): "Performs $rd = $rt >> $shamt." => [Rd, Rt, Shamt],
     "srl"    "Shift Right Logical"              (R, 0x00/0x02): "Performs $rd = $rt >> $shamt." => [Rd, Rt, Shamt],
     "sub"    "Subtract"                         (R, 0x00/0x22): "Performs $rd = $rs - $rt." => [Rd, Rs, Rt],
-    "subu"   "Subtract Unsigned"                (I, 0x00/0x23): "Performs $rt = $rs - $imm." => [Rt, Rs, UImm],
+    "subu"   "Subtract Unsigned"                (R, 0x23/0x00): "Performs $rd = $rs - $rt, unsigned." => [Rd, Rs, Rt],
     "xor"    "XOR"                              (R, 0x00/0x26): "Performs $rd = $rs ^ $rt." => [Rd, Rs, Rt],
 
     //                                              treated the same as lw

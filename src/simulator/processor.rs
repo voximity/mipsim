@@ -1,6 +1,6 @@
-use std::io;
+use std::{io, mem::transmute};
 
-use byteorder::{ReadBytesExt, BE};
+use byteorder::{ReadBytesExt, WriteBytesExt, BE};
 
 use crate::assembler::inst::{Inst, InstType, INST_OPCODE_FUNC};
 
@@ -17,6 +17,11 @@ impl Default for Processor {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[inline]
+fn to_signed_imm(imm: u16) -> i16 {
+    unsafe { transmute(imm) }
 }
 
 impl Processor {
@@ -47,7 +52,7 @@ impl Processor {
                     }
                 };
 
-                self.call_rtype(data, inst);
+                self.call_rtype(data, inst)?;
             }
 
             // I- or J-type
@@ -61,8 +66,8 @@ impl Processor {
                 };
 
                 match inst.ty {
-                    InstType::I | InstType::Ils => self.call_itype(data, inst),
-                    InstType::J => self.call_jtype(data, inst),
+                    InstType::I | InstType::Ils => self.call_itype(data, inst)?,
+                    InstType::J => self.call_jtype(data, inst)?,
                     _ => unreachable!(),
                 }
             }
@@ -71,7 +76,7 @@ impl Processor {
         Ok(())
     }
 
-    pub fn call_rtype(&mut self, encoded: u32, inst: &'static Inst) {
+    pub fn call_rtype(&mut self, encoded: u32, inst: &'static Inst) -> io::Result<()> {
         let rs = ((encoded >> 21) & 0x1f) as u8;
         let rt = ((encoded >> 16) & 0x1f) as u8;
         let rd = ((encoded >> 11) & 0x1f) as u8;
@@ -136,7 +141,12 @@ impl Processor {
             // sub
             0x22 => self
                 .regs
-                .set_u32(rd, self.regs.get_u32(rs) - self.regs.get_u32(rt)),
+                .set_i32(rd, self.regs.get_i32(rs) - self.regs.get_i32(rt)),
+
+            // subu
+            0x23 => self
+                .regs
+                .set_u32(rt, self.regs.get_u32(rs) - self.regs.get_u32(rt)),
 
             // xor
             0x26 => self
@@ -145,7 +155,7 @@ impl Processor {
 
             // jr
             0x08 => {
-                self.pc = self.regs.get_u32(rs) as usize;
+                self.pc = (self.regs.get_u32(rs) as usize) << 2;
                 inc_pc = false;
             }
 
@@ -160,13 +170,143 @@ impl Processor {
         if inc_pc {
             self.pc += 4;
         }
+
+        Ok(())
     }
 
-    pub fn call_itype(&mut self, encoded: u32, inst: &'static Inst) {
-        // ...
+    pub fn call_itype(&mut self, encoded: u32, inst: &'static Inst) -> io::Result<()> {
+        let rs = ((encoded >> 21) & 0x1f) as u8;
+        let rt = ((encoded >> 16) & 0x1f) as u8;
+        let imm = (encoded & 0xffff) as u16;
+        let mut inc_pc = true;
+
+        match inst.opcode {
+            // addi
+            0x08 => self
+                .regs
+                .set_i32(rt, self.regs.get_i32(rs) + to_signed_imm(imm) as i32),
+
+            // addiu
+            0x09 => self.regs.set_u32(rt, self.regs.get_u32(rs) + imm as u32),
+
+            // andi
+            0x0c => self.regs.set_u32(rt, self.regs.get_u32(rs) & imm as u32),
+
+            // lui
+            0x0f => self
+                .regs
+                .set_u32(rt, (imm as u32) << 16 | self.regs.get_u32(rt) & 0xffff),
+
+            // ori
+            0x0d => self.regs.set_u32(rt, self.regs.get_u32(rs) | imm as u32),
+
+            // slti
+            0x0a => self.regs.set_u32(
+                rt,
+                if self.regs.get_i32(rs) < to_signed_imm(imm) as i32 {
+                    1
+                } else {
+                    0
+                },
+            ),
+
+            // sltiu
+            0x0b => self.regs.set_u32(
+                rt,
+                if self.regs.get_u32(rs) < imm as u32 {
+                    1
+                } else {
+                    0
+                },
+            ),
+
+            // lbu
+            0x24 => {
+                self.mem
+                    .set_pos((self.regs.get_i32(rs) + to_signed_imm(imm) as i32) as usize);
+                self.regs.set_u32(rt, self.mem.read_u8()? as u32);
+            }
+
+            // lhu
+            0x25 => {
+                self.mem
+                    .set_pos((self.regs.get_i32(rs) + to_signed_imm(imm) as i32) as usize);
+                self.regs.set_u32(rt, self.mem.read_u16::<BE>()? as u32);
+            }
+
+            // lw
+            0x23 => {
+                self.mem
+                    .set_pos((self.regs.get_i32(rs) + to_signed_imm(imm) as i32) as usize);
+                self.regs.set_u32(rt, self.mem.read_u32::<BE>()?);
+            }
+
+            // sb
+            0x28 => {
+                self.mem
+                    .set_pos((self.regs.get_i32(rs) + to_signed_imm(imm) as i32) as usize);
+                self.mem.write_u8(self.regs.get_u32(rs) as u8)?;
+            }
+
+            // sh
+            0x29 => {
+                self.mem
+                    .set_pos((self.regs.get_i32(rs) + to_signed_imm(imm) as i32) as usize);
+                self.mem.write_u16::<BE>(self.regs.get_u32(rs) as u16)?;
+            }
+
+            // sw
+            0x2b => {
+                self.mem
+                    .set_pos((self.regs.get_i32(rs) + to_signed_imm(imm) as i32) as usize);
+                self.mem.write_u32::<BE>(self.regs.get_u32(rs))?;
+            }
+
+            // beq
+            0x04 => {
+                if self.regs.get_u32(rt) == self.regs.get_u32(rs) {
+                    inc_pc = false;
+                    self.pc = ((imm as u32) << 2) as usize + 4;
+                }
+            }
+
+            // bne
+            0x05 => {
+                if self.regs.get_u32(rt) != self.regs.get_u32(rs) {
+                    inc_pc = false;
+                    self.pc = ((imm as u32) << 2) as usize + 4;
+                }
+            }
+
+            _ => unreachable!(),
+        }
+
+        if inc_pc {
+            self.pc += 4;
+        }
+
+        Ok(())
     }
 
-    pub fn call_jtype(&mut self, encoded: u32, inst: &'static Inst) {
-        // ...
+    pub fn call_jtype(&mut self, encoded: u32, inst: &'static Inst) -> io::Result<()> {
+        let addr = encoded & 0x3ffffff;
+
+        match inst.opcode {
+            // j
+            0x02 => {
+                self.pc = (addr as usize) << 2;
+            }
+
+            // jal
+            0x03 => {
+                // set ra to the current pc
+                self.regs.set_u32(31, (self.pc >> 2) as u32);
+                self.pc = (addr as usize) << 2;
+            }
+
+            _ => unreachable!(),
+        }
+
+        Ok(())
     }
 }
