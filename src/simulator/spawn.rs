@@ -14,8 +14,9 @@ pub enum ProcMessage {
 
     /// Step the processor.
     Step,
-    // Send some stdin to the processor.
-    // Io(String),
+
+    /// Send some stdin to the processor.
+    Io(String),
 }
 
 /// Messages from the processor to the app.
@@ -38,6 +39,7 @@ pub enum AppMessage {
 pub struct ProcSync {
     pub pc: usize,
     pub regs: RegSync,
+    pub active: bool,
 }
 
 pub enum RegSync {
@@ -80,6 +82,7 @@ impl Processor {
                         };
                         match LoadContext::new(&mut proc, &parsed).load() {
                             Ok(map) => {
+                                app_tx.send(AppMessage::Sync(proc.sync_hard())).unwrap();
                                 app_tx.send(AppMessage::PcLines(map)).unwrap();
                                 app_tx
                                     .send(AppMessage::Log("Processor loaded".to_string()))
@@ -106,10 +109,24 @@ impl Processor {
                                 .unwrap();
                         }
                     },
+
+                    ProcMessage::Io(_) => (),
                 }
             }
         });
 
         (proc_tx, app_rx)
+    }
+
+    pub fn io_recv(&mut self) -> Result<String, ()> {
+        while let Ok(message) = self.proc_rx.recv() {
+            match message {
+                ProcMessage::Io(string) => return Ok(string),
+                ProcMessage::Step => continue,
+                _ => return Err(()),
+            }
+        }
+
+        Err(())
     }
 }

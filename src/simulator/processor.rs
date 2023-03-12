@@ -1,7 +1,6 @@
 use std::{io, mem::transmute, num::ParseIntError};
 
 use byteorder::{ReadBytesExt, WriteBytesExt, BE};
-use crossbeam::channel::RecvError;
 use thiserror::Error;
 
 use crate::assembler::inst::{Inst, InstType, INST_OPCODE_FUNC};
@@ -16,8 +15,8 @@ use super::{
 pub enum ExecError {
     #[error("io error: {0}")]
     IoError(#[from] io::Error),
-    #[error("io recv error: {0}")]
-    IoRecvError(#[from] RecvError),
+    #[error("io recv error")]
+    IoRecvError,
     #[error("int parse error: {0}")]
     IntParseError(#[from] ParseIntError),
 }
@@ -61,6 +60,7 @@ impl Processor {
         ProcSync {
             pc: self.pc,
             regs: RegSync::Set(self.regs.data),
+            active: self.active,
         }
     }
 
@@ -70,6 +70,7 @@ impl Processor {
         ProcSync {
             pc: self.pc,
             regs: RegSync::Diff(std::mem::take(&mut self.regs.diff)),
+            active: self.active,
         }
     }
 
@@ -79,6 +80,7 @@ impl Processor {
         ProcSync {
             pc: self.pc,
             regs: RegSync::Set(self.regs.data),
+            active: self.active,
         }
     }
 
@@ -137,9 +139,7 @@ impl Processor {
 
                             // read int
                             5 => {
-                                // let input = io_rx.recv()?;
-                                // let input = self.proc_rx
-                                let input: String = "1".into(); // TODO
+                                let input = self.io_recv().map_err(|_| ExecError::IoRecvError)?;
                                 let parsed = str::parse::<i32>(&input)?;
                                 self.regs.set_i32(REG_V0, parsed);
                             }

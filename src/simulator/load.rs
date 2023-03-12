@@ -52,6 +52,8 @@ impl<'a> LoadContext<'a> {
 
     pub fn load(mut self) -> Result<HashMap<usize, u32>, AssembleError<'a>> {
         self.processor.reset();
+        self.processor.active = true;
+
         for node in self.parsed.iter() {
             match &node.kind {
                 NodeKind::Section(sec) => {

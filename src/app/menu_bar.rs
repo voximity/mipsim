@@ -44,13 +44,19 @@ pub fn show_menu_bar(app: &mut App, ctx: &egui::Context, frame: &mut eframe::Fra
                     .unwrap();
             }
 
-            if ui.add_enabled(true, egui::Button::new("Reset")).clicked() {
+            if ui
+                .add_enabled(app.proc.active, egui::Button::new("Reset"))
+                .clicked()
+            {
                 app.proc.pc_lines = None;
                 app.output.io.reset();
                 app.proc_tx.send(ProcMessage::Reset).unwrap();
             }
 
-            if ui.add_enabled(true, egui::Button::new("Step")).clicked() {
+            if ui
+                .add_enabled(app.proc.active, egui::Button::new("Step"))
+                .clicked()
+            {
                 app.proc_tx.send(ProcMessage::Step).unwrap();
             }
         });

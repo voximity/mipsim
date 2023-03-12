@@ -30,11 +30,13 @@ pub struct ProcState {
     pub pc: usize,
     pub pc_lines: Option<HashMap<usize, u32>>,
     pub regs: [Register; 32],
+    pub active: bool,
 }
 
 impl ProcState {
     fn sync(&mut self, sync: ProcSync) {
         self.pc = sync.pc;
+        self.active = sync.active;
 
         match sync.regs {
             RegSync::Set(regs) => {
@@ -128,7 +130,7 @@ impl eframe::App for App {
                     self.proc.pc_lines = Some(map);
                 }
                 AppMessage::Io(string) => {
-                    self.output.io.out_tx.send(string).unwrap();
+                    self.output.io.add(string);
                 }
                 AppMessage::Log(string) => {
                     self.output.log.tx.send(string).unwrap();
@@ -137,7 +139,6 @@ impl eframe::App for App {
         }
 
         // update output buffers
-        self.output.io.update();
         self.output.log.update();
 
         menu_bar::show_menu_bar(self, ctx, frame);
@@ -156,7 +157,7 @@ impl eframe::App for App {
             .default_height(200.0)
             .show(ctx, |ui| {
                 ui.heading("Output");
-                self.output.show(ui);
+                self.output.show(ui, &self.proc_tx);
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {

@@ -1,6 +1,9 @@
 use egui::TextStyle;
 
-use crate::{simulator::Io, util::ParBuf};
+use crate::{
+    simulator::{Io, ProcMessage, ProcTx},
+    util::ParBuf,
+};
 
 #[derive(Debug, Default)]
 pub enum OutputTab {
@@ -27,7 +30,7 @@ impl Default for Output {
 }
 
 impl Output {
-    pub fn show(&mut self, ui: &mut egui::Ui) {
+    pub fn show(&mut self, ui: &mut egui::Ui, proc_tx: &ProcTx) {
         ui.horizontal(|ui| {
             macro_rules! tabs {
                 { $($variant:ident => $name:literal),*, } => {
@@ -61,24 +64,23 @@ impl Output {
                         if !self.io.buf.is_empty() {
                             ui.monospace(&self.io.buf);
                         }
+                    });
 
+                    {
                         let input = egui::TextEdit::singleline(&mut self.io.in_buf)
                             .font(TextStyle::Monospace)
-                            .frame(false);
+                            .desired_width(f32::INFINITY);
+                        // .frame(false);
                         let data = input.show(ui);
                         if data.response.lost_focus()
                             && data.response.ctx.input(|i| i.key_down(egui::Key::Enter))
                         {
                             // submit data
-                            let _ = self.io.in_tx.send(std::mem::take(&mut self.io.in_buf));
+                            let string = std::mem::take(&mut self.io.in_buf);
+                            self.io.add(format!("{string}\n"));
+                            let _ = proc_tx.send(ProcMessage::Io(string));
                         }
-
-                        // ui.add(
-                        //     egui::TextEdit::singleline(&mut self.io.in_buf)
-                        //         .font(TextStyle::Monospace)
-                        //         .frame(false),
-                        // );
-                    });
+                    }
                 }
                 OutputTab::Log => {
                     for line in self.log.iter() {
