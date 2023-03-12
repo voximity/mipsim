@@ -1,4 +1,6 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
+
+use parking_lot::RwLock;
 
 use crate::simulator::Processor;
 
@@ -18,14 +20,14 @@ pub struct App {
     pub unsaved: bool,
 
     // simulator
-    pub processor: Processor,
+    pub processor: Arc<RwLock<Processor>>,
     pub pc_line_map: Option<HashMap<usize, u32>>,
 }
 
 impl Default for App {
     fn default() -> Self {
         let output = Output::default();
-        let processor = Processor::new(output.io.out_tx.clone());
+        let processor = Processor::new();
 
         Self {
             body: String::new(),
@@ -33,7 +35,7 @@ impl Default for App {
             file: None,
             unsaved: false,
 
-            processor,
+            processor: Arc::new(RwLock::new(processor)),
             pc_line_map: None,
         }
     }
@@ -108,7 +110,7 @@ impl eframe::App for App {
             .width_range(200.0..=400.0)
             .default_width(200.0)
             .show(ctx, |ui| {
-                self.processor.regs.show(ui);
+                self.processor.read().regs.show(ui);
             });
 
         egui::TopBottomPanel::bottom("panel_output")

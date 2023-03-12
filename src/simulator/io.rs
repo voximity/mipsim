@@ -1,22 +1,27 @@
-use std::sync::mpsc::{self, Receiver, Sender};
-
 #[derive(Debug)]
 pub struct Io {
     pub lines: Vec<String>,
     pub buf: String,
-    pub out_rx: Receiver<String>,
-    pub out_tx: Sender<String>,
+    pub in_buf: String,
+    pub out_tx: crossbeam::channel::Sender<String>,
+    pub out_rx: crossbeam::channel::Receiver<String>,
+    pub in_tx: crossbeam::channel::Sender<String>,
+    pub in_rx: crossbeam::channel::Receiver<String>,
 }
 
 impl Io {
     pub fn new() -> Self {
-        let (out_tx, out_rx) = mpsc::channel();
+        let (out_tx, out_rx) = crossbeam::channel::unbounded();
+        let (in_tx, in_rx) = crossbeam::channel::unbounded();
 
         Self {
             lines: vec![],
             buf: String::new(),
+            in_buf: String::new(),
             out_rx,
             out_tx,
+            in_tx,
+            in_rx,
         }
     }
 

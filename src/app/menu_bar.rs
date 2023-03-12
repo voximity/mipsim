@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{assembler::parser::Parser, simulator::LoadContext};
 
 use super::App;
@@ -38,6 +40,8 @@ pub fn show_menu_bar(app: &mut App, ctx: &egui::Context, frame: &mut eframe::Fra
         });
 
         ui.horizontal(|ui| {
+            let loaded = app.processor.read().loaded;
+
             if ui.add(egui::Button::new("Assemble")).clicked() {
                 let parser = Parser::new(&app.body);
                 let parsed = match parser.parse() {
@@ -54,7 +58,8 @@ pub fn show_menu_bar(app: &mut App, ctx: &egui::Context, frame: &mut eframe::Fra
                     .send("Parsed, loading into the processor...".into())
                     .unwrap();
 
-                let load_ctx = LoadContext::new(&mut app.processor, &parsed);
+                let mut processor = app.processor.write();
+                let load_ctx = LoadContext::new(&mut processor, &parsed);
 
                 app.pc_line_map = Some(load_ctx.load().expect("failed to load into processor"));
 
@@ -66,27 +71,30 @@ pub fn show_menu_bar(app: &mut App, ctx: &egui::Context, frame: &mut eframe::Fra
             }
 
             if ui
-                .add_enabled(app.processor.loaded, egui::Button::new("Reset"))
+                .add_enabled(app.processor.read().loaded, egui::Button::new("Reset"))
                 .clicked()
             {
-                app.processor.reset();
+                app.processor.write().reset();
                 app.output.io.reset();
             }
 
-            if ui
-                .add_enabled(app.processor.loaded, egui::Button::new("Step"))
-                .clicked()
-            {
-                if !app.processor.loaded {
-                    return;
-                }
+            if ui.add_enabled(loaded, egui::Button::new("Step")).clicked() {
+                let log_tx = app.output.log.tx.clone();
+                let proc_arc = Arc::clone(&app.processor);
 
-                app.processor.step().expect("failed to step processor");
-                app.output
-                    .log
-                    .tx
-                    .send(format!("Stepped processor, new PC: {}", app.processor.pc))
-                    .unwrap();
+                let in_tx = app.output.io.in_tx.clone();
+                let in_rx = app.output.io.in_rx.clone();
+
+                std::thread::spawn(move || {
+                    let mut processor = proc_arc.write();
+                    if let Err(e) = processor.step(in_tx, in_rx) {
+                        log_tx.send(format!("Step error: {e}")).unwrap();
+                    } else {
+                        log_tx
+                            .send(format!("Stepped (new PC {})", processor.pc))
+                            .unwrap();
+                    }
+                });
             }
         });
 

@@ -50,11 +50,12 @@ impl Editor {
             app.unsaved = true;
         }
 
-        if app.processor.loaded {
+        let processor = app.processor.read();
+        if processor.loaded {
             if let Some(row) = app
                 .pc_line_map
                 .as_ref()
-                .and_then(|map| map.get(&app.processor.pc).copied())
+                .and_then(|map| map.get(&processor.pc).copied())
                 .and_then(|idx| editor.galley.rows.get(idx as usize))
             {
                 let painter = ui.painter_at(editor.response.rect);
@@ -65,6 +66,7 @@ impl Editor {
                 );
             }
         }
+        drop(processor);
 
         // lexeme hovering
         if let Some(hover_pos) = ui.input(|p| p.pointer.hover_pos()) {

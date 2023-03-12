@@ -1,3 +1,5 @@
+use egui::TextStyle;
+
 use crate::{simulator::Io, util::ParBuf};
 
 #[derive(Debug, Default)]
@@ -55,9 +57,28 @@ impl Output {
                         ui.monospace(line);
                     }
 
-                    if !self.io.buf.is_empty() {
-                        ui.monospace(&self.io.buf);
-                    }
+                    ui.horizontal(|ui| {
+                        if !self.io.buf.is_empty() {
+                            ui.monospace(&self.io.buf);
+                        }
+
+                        let input = egui::TextEdit::singleline(&mut self.io.in_buf)
+                            .font(TextStyle::Monospace)
+                            .frame(false);
+                        let data = input.show(ui);
+                        if data.response.lost_focus()
+                            && data.response.ctx.input(|i| i.key_down(egui::Key::Enter))
+                        {
+                            // submit data
+                            println!("user submits {}", std::mem::take(&mut self.io.in_buf));
+                        }
+
+                        // ui.add(
+                        //     egui::TextEdit::singleline(&mut self.io.in_buf)
+                        //         .font(TextStyle::Monospace)
+                        //         .frame(false),
+                        // );
+                    });
                 }
                 OutputTab::Log => {
                     for line in self.log.iter() {
