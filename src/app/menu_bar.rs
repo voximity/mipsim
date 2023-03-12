@@ -1,6 +1,4 @@
-use std::sync::Arc;
-
-use crate::{assembler::parser::Parser, simulator::LoadContext};
+use crate::simulator::ProcMessage;
 
 use super::App;
 
@@ -40,61 +38,20 @@ pub fn show_menu_bar(app: &mut App, ctx: &egui::Context, frame: &mut eframe::Fra
         });
 
         ui.horizontal(|ui| {
-            let loaded = app.processor.read().loaded;
-
             if ui.add(egui::Button::new("Assemble")).clicked() {
-                let parser = Parser::new(&app.body);
-                let parsed = match parser.parse() {
-                    Ok(v) => v,
-                    Err(e) => {
-                        app.output.log.tx.send(format!("Parse error: {e}")).unwrap();
-                        return;
-                    }
-                };
-
-                app.output
-                    .log
-                    .tx
-                    .send("Parsed, loading into the processor...".into())
-                    .unwrap();
-
-                let mut processor = app.processor.write();
-                let load_ctx = LoadContext::new(&mut processor, &parsed);
-
-                app.pc_line_map = Some(load_ctx.load().expect("failed to load into processor"));
-
-                app.output
-                    .log
-                    .tx
-                    .send("Loaded into processor".into())
+                app.proc_tx
+                    .send(ProcMessage::Load(app.body.clone()))
                     .unwrap();
             }
 
-            if ui
-                .add_enabled(app.processor.read().loaded, egui::Button::new("Reset"))
-                .clicked()
-            {
-                app.processor.write().reset();
+            if ui.add_enabled(true, egui::Button::new("Reset")).clicked() {
+                app.proc.pc_lines = None;
                 app.output.io.reset();
+                app.proc_tx.send(ProcMessage::Reset).unwrap();
             }
 
-            if ui.add_enabled(loaded, egui::Button::new("Step")).clicked() {
-                let log_tx = app.output.log.tx.clone();
-                let proc_arc = Arc::clone(&app.processor);
-
-                let in_tx = app.output.io.in_tx.clone();
-                let in_rx = app.output.io.in_rx.clone();
-
-                std::thread::spawn(move || {
-                    let mut processor = proc_arc.write();
-                    if let Err(e) = processor.step(in_tx, in_rx) {
-                        log_tx.send(format!("Step error: {e}")).unwrap();
-                    } else {
-                        log_tx
-                            .send(format!("Stepped (new PC {})", processor.pc))
-                            .unwrap();
-                    }
-                });
+            if ui.add_enabled(true, egui::Button::new("Step")).clicked() {
+                app.proc_tx.send(ProcMessage::Step).unwrap();
             }
         });
 

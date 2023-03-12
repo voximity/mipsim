@@ -6,7 +6,10 @@ use thiserror::Error;
 
 use crate::assembler::inst::{Inst, InstType, INST_OPCODE_FUNC};
 
-use super::{registers::Registers, Memory, ADDR_TEXT, REG_A0, REG_V0};
+use super::{
+    registers::Registers, AppMessage, AppTx, Memory, ProcRx, ProcSync, RegSync, ADDR_TEXT, REG_A0,
+    REG_V0,
+};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Error, Debug)]
@@ -25,6 +28,9 @@ pub struct Processor {
     pub mem: Memory,
     pub pc: usize,
     pub loaded: bool,
+    pub active: bool,
+    pub app_tx: AppTx,
+    pub proc_rx: ProcRx,
 }
 
 #[inline]
@@ -33,27 +39,50 @@ fn to_signed_imm(imm: u16) -> i16 {
 }
 
 impl Processor {
-    pub fn new() -> Self {
+    pub fn new(app_tx: AppTx, proc_rx: ProcRx) -> Self {
         Self {
             regs: Registers::default(),
             mem: Memory::new(),
             pc: ADDR_TEXT,
             loaded: false,
+            active: false,
+            app_tx,
+            proc_rx,
         }
     }
 
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self) -> ProcSync {
         self.regs = Registers::default();
         self.mem = Memory::new();
         self.pc = ADDR_TEXT;
         self.loaded = false;
+        self.active = false;
+
+        ProcSync {
+            pc: self.pc,
+            regs: RegSync::Set(self.regs.data),
+        }
     }
 
-    pub fn step(
-        &mut self,
-        io_tx: crossbeam::channel::Sender<String>,
-        io_rx: crossbeam::channel::Receiver<String>,
-    ) -> Result<(), ExecError> {
+    /// Generate a processor sync context that the app
+    /// can use to synchronize with the processor state.
+    pub fn sync(&mut self) -> ProcSync {
+        ProcSync {
+            pc: self.pc,
+            regs: RegSync::Diff(std::mem::take(&mut self.regs.diff)),
+        }
+    }
+
+    /// Generate a hard-sync processor sync context.
+    /// Will force setting over diffing.
+    pub fn sync_hard(&mut self) -> ProcSync {
+        ProcSync {
+            pc: self.pc,
+            regs: RegSync::Set(self.regs.data),
+        }
+    }
+
+    pub fn step(&mut self) -> Result<(), ExecError> {
         // TODO: use the UI logging
 
         self.mem.set_pos(self.pc);
@@ -73,47 +102,54 @@ impl Processor {
                 };
 
                 match func {
-                    0x0c => match self.regs.get_u32(REG_V0) {
-                        // print integer
-                        1 => {
-                            let _ = io_tx.send(self.regs.get_i32(REG_A0).to_string());
-                        }
-
-                        // print string
-                        4 => {
-                            let string_addr = self.regs.get_u32(REG_A0) as usize;
-                            self.mem.set_pos(string_addr);
-                            let mut bytes = vec![];
-
-                            loop {
-                                match self.mem.read_u8()? {
-                                    0 => break,
-                                    b => bytes.push(b),
-                                }
-
-                                if bytes.len() > 1024 {
-                                    // TODO: remove this?
-                                    panic!("string too long");
-                                }
+                    0x0c => {
+                        match self.regs.get_u32(REG_V0) {
+                            // print integer
+                            1 => {
+                                let _ = self
+                                    .app_tx
+                                    .send(AppMessage::Io(self.regs.get_i32(REG_A0).to_string()));
                             }
 
-                            let _ = io_tx.send(
-                                String::from_utf8(bytes)
-                                    .unwrap_or_else(|_| "invalid utf-8 string".into()),
-                            );
-                        }
+                            // print string
+                            4 => {
+                                let string_addr = self.regs.get_u32(REG_A0) as usize;
+                                self.mem.set_pos(string_addr);
+                                let mut bytes = vec![];
 
-                        // read int
-                        5 => {
-                            let input = io_rx.recv()?;
-                            let parsed = str::parse::<i32>(&input)?;
-                            self.regs.set_i32(REG_V0, parsed);
-                        }
+                                loop {
+                                    match self.mem.read_u8()? {
+                                        0 => break,
+                                        b => bytes.push(b),
+                                    }
 
-                        code => {
-                            println!("unimplemented syscall {code}");
+                                    if bytes.len() > 1024 {
+                                        // TODO: remove this?
+                                        panic!("string too long");
+                                    }
+                                }
+
+                                let _ = self.app_tx.send(AppMessage::Io(
+                                    String::from_utf8(bytes)
+                                        .unwrap_or_else(|_| "invalid utf-8 string".into()),
+                                ));
+                            }
+
+                            // read int
+                            5 => {
+                                // let input = io_rx.recv()?;
+                                // let input = self.proc_rx
+                                let input: String = "1".into(); // TODO
+                                let parsed = str::parse::<i32>(&input)?;
+                                self.regs.set_i32(REG_V0, parsed);
+                            }
+
+                            code => {
+                                println!("unimplemented syscall {code}");
+                            }
                         }
-                    },
+                        self.pc += 4;
+                    }
                     _ => self.call_rtype(data, inst)?,
                 }
             }

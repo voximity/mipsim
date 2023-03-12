@@ -50,23 +50,20 @@ impl Editor {
             app.unsaved = true;
         }
 
-        let processor = app.processor.read();
-        if processor.loaded {
-            if let Some(row) = app
-                .pc_line_map
-                .as_ref()
-                .and_then(|map| map.get(&processor.pc).copied())
-                .and_then(|idx| editor.galley.rows.get(idx as usize))
-            {
-                let painter = ui.painter_at(editor.response.rect);
-                painter.rect_filled(
-                    row.rect.translate(editor.text_draw_pos.to_vec2()),
-                    0.0,
-                    Color32::from_rgba_unmultiplied(255, 0, 0, 20),
-                );
-            }
+        if let Some(row) = app
+            .proc
+            .pc_lines
+            .as_ref()
+            .and_then(|map| map.get(&app.proc.pc).copied())
+            .and_then(|idx| editor.galley.rows.get(idx as usize))
+        {
+            let painter = ui.painter_at(editor.response.rect);
+            painter.rect_filled(
+                row.rect.translate(editor.text_draw_pos.to_vec2()),
+                0.0,
+                Color32::from_rgba_unmultiplied(255, 0, 0, 20),
+            );
         }
-        drop(processor);
 
         // lexeme hovering
         if let Some(hover_pos) = ui.input(|p| p.pointer.hover_pos()) {

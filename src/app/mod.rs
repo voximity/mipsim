@@ -1,8 +1,6 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf};
 
-use parking_lot::RwLock;
-
-use crate::simulator::Processor;
+use crate::simulator::{AppMessage, AppRx, ProcSync, ProcTx, RegSync, Register, Registers};
 
 use self::{editor::Editor, output::Output};
 
@@ -19,29 +17,51 @@ pub struct App {
     pub file: Option<PathBuf>,
     pub unsaved: bool,
 
+    // processor synchronization
+    pub proc: ProcState,
+    pub proc_tx: ProcTx,
+    pub app_rx: AppRx,
     // simulator
-    pub processor: Arc<RwLock<Processor>>,
-    pub pc_line_map: Option<HashMap<usize, u32>>,
+    // pub processor: Arc<RwLock<Processor>>,
 }
 
-impl Default for App {
-    fn default() -> Self {
-        let output = Output::default();
-        let processor = Processor::new();
+#[derive(Debug, Default)]
+pub struct ProcState {
+    pub pc: usize,
+    pub pc_lines: Option<HashMap<usize, u32>>,
+    pub regs: [Register; 32],
+}
 
-        Self {
-            body: String::new(),
-            output,
-            file: None,
-            unsaved: false,
+impl ProcState {
+    fn sync(&mut self, sync: ProcSync) {
+        self.pc = sync.pc;
 
-            processor: Arc::new(RwLock::new(processor)),
-            pc_line_map: None,
+        match sync.regs {
+            RegSync::Set(regs) => {
+                self.regs = regs;
+            }
+            RegSync::Diff(diff) => {
+                for (index, value) in diff.into_iter() {
+                    self.regs[index as usize] = Register(value);
+                }
+            }
         }
     }
 }
 
 impl App {
+    pub fn new(proc_tx: ProcTx, app_rx: AppRx) -> Self {
+        Self {
+            body: String::new(),
+            output: Output::default(),
+            file: None,
+            unsaved: false,
+            proc: ProcState::default(),
+            proc_tx,
+            app_rx,
+        }
+    }
+
     fn log(&self, message: impl Into<String>) {
         self.output
             .log
@@ -99,6 +119,23 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        while let Ok(message) = self.app_rx.try_recv() {
+            match message {
+                AppMessage::Sync(sync) => {
+                    self.proc.sync(sync);
+                }
+                AppMessage::PcLines(map) => {
+                    self.proc.pc_lines = Some(map);
+                }
+                AppMessage::Io(string) => {
+                    self.output.io.out_tx.send(string).unwrap();
+                }
+                AppMessage::Log(string) => {
+                    self.output.log.tx.send(string).unwrap();
+                }
+            }
+        }
+
         // update output buffers
         self.output.io.update();
         self.output.log.update();
@@ -110,7 +147,7 @@ impl eframe::App for App {
             .width_range(200.0..=400.0)
             .default_width(200.0)
             .show(ctx, |ui| {
-                self.processor.read().regs.show(ui);
+                Registers::show(ui, &self.proc.regs);
             });
 
         egui::TopBottomPanel::bottom("panel_output")

@@ -1,4 +1,4 @@
-use std::mem::transmute;
+use std::{collections::HashMap, mem::transmute};
 
 use egui_extras::{Column, TableBuilder};
 
@@ -6,7 +6,12 @@ use super::{ADDR_HEAP, ADDR_STACK_TOP};
 
 #[derive(Debug)]
 pub struct Registers {
+    /// Register data.
     pub data: [Register; 32],
+
+    /// The current diff of registers before being sent to
+    /// the app.
+    pub diff: HashMap<u8, i32>,
 }
 
 macro_rules! reg_defs {
@@ -37,7 +42,10 @@ impl Default for Registers {
         let mut data = [Register(0); 32];
         data[REG_GP as usize] = Register(unsafe { transmute(ADDR_HEAP as u32) });
         data[REG_SP as usize] = Register(unsafe { transmute(ADDR_STACK_TOP as u32) });
-        Self { data }
+        Self {
+            data,
+            diff: HashMap::new(),
+        }
     }
 }
 
@@ -86,10 +94,12 @@ impl Registers {
 
     pub fn set_i32(&mut self, index: u8, value: i32) {
         self.data[index as usize] = Register(value);
+        self.diff.insert(index, value);
     }
 
     pub fn set_u32(&mut self, index: u8, value: u32) {
         self.data[index as usize] = unsafe { transmute(value) };
+        self.diff.insert(index, unsafe { transmute(value) });
     }
 
     pub fn get_i32(&self, index: u8) -> i32 {
@@ -100,7 +110,7 @@ impl Registers {
         self.data[index as usize].to_u32()
     }
 
-    pub fn show(&self, ui: &mut egui::Ui) {
+    pub fn show(ui: &mut egui::Ui, regs: &[Register; 32]) {
         TableBuilder::new(ui)
             .column(Column::auto().at_least(60.0).resizable(false))
             .column(Column::auto().at_least(30.0).resizable(false))
@@ -126,7 +136,7 @@ impl Registers {
                         ui.monospace(format!("{i}"));
                     });
                     row.col(|ui| {
-                        ui.monospace(format!("0x{:08x}", self.data[i].0));
+                        ui.monospace(format!("0x{:08x}", regs[i].0));
                     });
                 })
             })
@@ -135,7 +145,7 @@ impl Registers {
 
 #[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Register(i32);
+pub struct Register(pub i32);
 
 impl Register {
     pub fn to_u32(self) -> u32 {

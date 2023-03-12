@@ -70,7 +70,7 @@ impl Output {
                             && data.response.ctx.input(|i| i.key_down(egui::Key::Enter))
                         {
                             // submit data
-                            println!("user submits {}", std::mem::take(&mut self.io.in_buf));
+                            let _ = self.io.in_tx.send(std::mem::take(&mut self.io.in_buf));
                         }
 
                         // ui.add(
