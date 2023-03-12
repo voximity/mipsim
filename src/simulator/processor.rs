@@ -1,10 +1,10 @@
-use std::{io, mem::transmute};
+use std::{io, mem::transmute, sync::mpsc::Sender};
 
 use byteorder::{ReadBytesExt, WriteBytesExt, BE};
 
 use crate::assembler::inst::{Inst, InstType, INST_OPCODE_FUNC};
 
-use super::{registers::Registers, Memory, ADDR_TEXT};
+use super::{registers::Registers, Memory, ADDR_TEXT, REG_A0, REG_V0};
 
 #[derive(Debug)]
 pub struct Processor {
@@ -12,12 +12,7 @@ pub struct Processor {
     pub mem: Memory,
     pub pc: usize,
     pub loaded: bool,
-}
-
-impl Default for Processor {
-    fn default() -> Self {
-        Self::new()
-    }
+    pub io_tx: Sender<String>,
 }
 
 #[inline]
@@ -26,12 +21,13 @@ fn to_signed_imm(imm: u16) -> i16 {
 }
 
 impl Processor {
-    pub fn new() -> Self {
+    pub fn new(io_tx: Sender<String>) -> Self {
         Self {
             regs: Registers::default(),
             mem: Memory::new(),
             pc: ADDR_TEXT,
             loaded: false,
+            io_tx,
         }
     }
 
@@ -173,9 +169,39 @@ impl Processor {
             }
 
             // syscall
-            0x0c => {
-                todo!();
-            }
+            0x0c => match self.regs.get_u32(REG_V0) {
+                // print integer
+                1 => {
+                    let _ = self.io_tx.send(self.regs.get_i32(REG_A0).to_string());
+                }
+
+                // print string
+                4 => {
+                    let string_addr = self.regs.get_u32(REG_A0) as usize;
+                    self.mem.set_pos(string_addr);
+                    let mut bytes = vec![];
+
+                    loop {
+                        match self.mem.read_u8()? {
+                            0 => break,
+                            b => bytes.push(b),
+                        }
+
+                        if bytes.len() > 1024 {
+                            // TODO: remove this?
+                            panic!("string too long");
+                        }
+                    }
+
+                    let _ = self.io_tx.send(
+                        String::from_utf8(bytes).unwrap_or_else(|_| "invalid utf-8 string".into()),
+                    );
+                }
+
+                code => {
+                    println!("unimplemented syscall {code}");
+                }
+            },
 
             _ => unreachable!(),
         }
@@ -211,9 +237,7 @@ impl Processor {
             0x0c => self.regs.set_u32(rt, self.regs.get_u32(rs) & imm as u32),
 
             // lui
-            0x0f => self
-                .regs
-                .set_u32(rt, (imm as u32) << 16 | self.regs.get_u32(rt) & 0xffff),
+            0x0f => self.regs.set_u32(rt, (imm as u32) << 16),
 
             // ori
             0x0d => self.regs.set_u32(rt, self.regs.get_u32(rs) | imm as u32),

@@ -29,6 +29,14 @@ pub struct Inst {
     pub func: u8,
 }
 
+#[derive(Debug, Clone)]
+pub struct PseudoInst {
+    pub mnemonic: &'static str,
+    pub name: &'static str,
+    pub desc: &'static str,
+    pub args: [InstArg; 3],
+}
+
 impl Inst {
     pub fn show(&self, ui: &mut egui::Ui) {
         let ty_ils = matches!(self.ty, InstType::Ils);
@@ -76,6 +84,76 @@ impl Inst {
         });
 
         let mut desc_job = LayoutJob::default();
+        desc_job.wrap.max_width = 100.0;
+        let desc_lex = Lexer::new(self.desc).lex_registers_only();
+        for lexeme in desc_lex.into_iter() {
+            let mut slice = &self.desc[lexeme.slice];
+
+            let format = match lexeme.kind {
+                // starts with a $
+                LexemeKind::Reg => {
+                    slice = &slice[1..];
+                    TextFormat {
+                        color: str::parse::<InstArg>(slice)
+                            .unwrap_or(InstArg::None)
+                            .to_color(),
+                        font_id: egui::FontId::monospace(12.0),
+                        ..Default::default()
+                    }
+                }
+
+                // everything else
+                _ => TextFormat {
+                    color: Color32::GRAY,
+                    font_id: egui::FontId::proportional(12.0),
+                    ..Default::default()
+                },
+            };
+
+            desc_job.append(slice, 0.0, format);
+        }
+
+        ui.label(desc_job);
+    }
+}
+
+impl PseudoInst {
+    pub fn show(&self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.strong(self.name);
+            ui.label("(pseudo)");
+
+            let mut usage_job = LayoutJob::default();
+
+            // mnemonic
+            usage_job.append(self.mnemonic, 0.0, LexemeKind::Inst.into_text_format());
+
+            // arguments
+            for (i, arg) in self.args.iter().enumerate() {
+                if matches!(arg, InstArg::None) {
+                    break;
+                }
+
+                if i > 0 {
+                    usage_job.append(", ", 0.0, LexemeKind::Punct.into_text_format());
+                }
+
+                usage_job.append(
+                    arg.to_name(),
+                    if i == 0 { 8.0 } else { 0.0 },
+                    TextFormat {
+                        color: arg.to_color(),
+                        font_id: egui::FontId::monospace(12.0),
+                        ..Default::default()
+                    },
+                );
+            }
+
+            ui.label(usage_job);
+        });
+
+        let mut desc_job = LayoutJob::default();
+        desc_job.wrap.max_width = 100.0;
         let desc_lex = Lexer::new(self.desc).lex_registers_only();
         for lexeme in desc_lex.into_iter() {
             let mut slice = &self.desc[lexeme.slice];
@@ -201,6 +279,24 @@ macro_rules! instructions {
     }
 }
 
+macro_rules! pseudo_instructions {
+    { $( $mnemonic:literal $name:literal : $desc:literal => [$($arg:ident),*] ),*,} => {
+        lazy_static! {
+            pub static ref PSEUDO_INSTRUCTIONS: Vec<PseudoInst> = vec![
+                $(PseudoInst {
+                    mnemonic: $mnemonic,
+                    name: $name,
+                    desc: $desc,
+                    args: [$(InstArg::$arg,)*],
+                },)*
+            ];
+
+            pub static ref PSEUDO_INST_MNEMONICS: HashMap<&'static str, &'static PseudoInst> =
+                PSEUDO_INSTRUCTIONS.iter().map(|i| (i.mnemonic, i)).collect();
+        }
+    }
+}
+
 /// Instruction mnemonics that store addresses as relative to their
 /// address, NOT absolutely.
 pub static INST_ADDR_RELATIVE: &[&str] = &["beq", "bne"];
@@ -243,4 +339,8 @@ instructions! {
     "jal"    "Jump and Link"                    (J, 0x03/0x00): "Set $ra to $pc, then jump to $addr." => [Addr, None, None],
     "jr"     "Jump Register"                    (R, 0x00/0x08): "Jump to the address specified by $rs." => [Rs, None, None],
     "syscall" "System Call"                     (R, 0x00/0x0c): "Perform a system call." => [None, None, None],
+}
+
+pseudo_instructions! {
+    "la"    "Load Address": "Load $addr (literally) into $rt. $addr can be a label name or a literal 32-bit value. Expands into a call to lui and ori." => [Rt, Addr, None],
 }

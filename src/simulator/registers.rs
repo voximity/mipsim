@@ -11,7 +11,7 @@ pub struct Registers {
 
 macro_rules! reg_defs {
     {$($name:ident = $index:literal),*,} => {
-        $(#[allow(dead_code)] pub const $name: usize = $index;)*
+        $(#[allow(dead_code)] pub const $name: u8 = $index;)*
     }
 }
 
@@ -35,8 +35,8 @@ reg_defs! {
 impl Default for Registers {
     fn default() -> Self {
         let mut data = [Register(0); 32];
-        data[REG_GP] = Register(unsafe { transmute(ADDR_HEAP as u32) });
-        data[REG_SP] = Register(unsafe { transmute(ADDR_STACK_TOP as u32) });
+        data[REG_GP as usize] = Register(unsafe { transmute(ADDR_HEAP as u32) });
+        data[REG_SP as usize] = Register(unsafe { transmute(ADDR_STACK_TOP as u32) });
         Self { data }
     }
 }

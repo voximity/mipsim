@@ -1,4 +1,4 @@
-use crate::assembler::parser::Parser;
+use crate::{assembler::parser::Parser, simulator::LoadContext};
 
 use super::App;
 
@@ -54,11 +54,9 @@ pub fn show_menu_bar(app: &mut App, ctx: &egui::Context, frame: &mut eframe::Fra
                     .send("Parsed, loading into the processor...".into())
                     .unwrap();
 
-                app.pc_line_map = Some(
-                    app.processor
-                        .load(&parsed)
-                        .expect("failed to load into processor"),
-                );
+                let load_ctx = LoadContext::new(&mut app.processor, &parsed);
+
+                app.pc_line_map = Some(load_ctx.load().expect("failed to load into processor"));
 
                 app.output
                     .log
@@ -72,6 +70,7 @@ pub fn show_menu_bar(app: &mut App, ctx: &egui::Context, frame: &mut eframe::Fra
                 .clicked()
             {
                 app.processor.reset();
+                app.output.io.reset();
             }
 
             if ui

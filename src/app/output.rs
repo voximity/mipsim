@@ -1,4 +1,4 @@
-use crate::util::ParBuf;
+use crate::{simulator::Io, util::ParBuf};
 
 #[derive(Debug, Default)]
 pub enum OutputTab {
@@ -10,7 +10,7 @@ pub enum OutputTab {
 #[derive(Debug)]
 pub struct Output {
     pub tab: OutputTab,
-    pub io: ParBuf<String>,
+    pub io: Io,
     pub log: ParBuf<String>,
 }
 
@@ -18,7 +18,7 @@ impl Default for Output {
     fn default() -> Self {
         Self {
             tab: OutputTab::Log,
-            io: ParBuf::new().limit(100),
+            io: Io::new(),
             log: ParBuf::new().limit(100),
         }
     }
@@ -49,14 +49,20 @@ impl Output {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .stick_to_bottom(true)
-            .show(ui, |ui| {
-                let buf = match self.tab {
-                    OutputTab::Io => &self.io,
-                    OutputTab::Log => &self.log,
-                };
+            .show(ui, |ui| match self.tab {
+                OutputTab::Io => {
+                    for line in self.io.lines.iter() {
+                        ui.monospace(line);
+                    }
 
-                for line in buf.iter() {
-                    ui.monospace(line);
+                    if !self.io.buf.is_empty() {
+                        ui.monospace(&self.io.buf);
+                    }
+                }
+                OutputTab::Log => {
+                    for line in self.log.iter() {
+                        ui.monospace(line);
+                    }
                 }
             });
     }

@@ -5,7 +5,7 @@ use thiserror::Error;
 use crate::simulator::Registers;
 
 use super::{
-    inst::{Inst, InstArg, InstType, INST_MNEMONICS},
+    inst::{Inst, InstArg, InstType, PseudoInst, INST_MNEMONICS, PSEUDO_INST_MNEMONICS},
     lexer::{Lexeme, LexemeKind, Lexer},
 };
 
@@ -65,6 +65,15 @@ pub enum NodeKind<'a> {
     /// A J-type instruction call.
     InstJ {
         inst: &'static Inst,
+        addr: NodeImm<'a>,
+    },
+
+    /// A pseudo instruction call.
+    InstPseudo {
+        inst: &'static PseudoInst,
+        rs: u8,
+        rt: u8,
+        rd: u8,
         addr: NodeImm<'a>,
     },
 
@@ -233,9 +242,17 @@ impl<'a> Parser<'a> {
                 '\\' if !escape => {
                     escape = true;
                 }
+
                 '"' if !escape => {
                     return Ok(buf);
                 }
+
+                // escapes
+                'n' if escape => {
+                    escape = false;
+                    buf.push('\n');
+                }
+
                 _ => {
                     escape = false;
                     buf.push(c);
@@ -319,10 +336,20 @@ impl<'a> Parser<'a> {
 
                 // instructions
                 LexemeKind::Inst => {
-                    let inst = INST_MNEMONICS
-                        .get(slice)
-                        .ok_or(ParseError::UnknownInstruction(slice))?;
-                    let ty_ils = matches!(inst.ty, InstType::Ils);
+                    // TODO: this code is awful, how can we do this better
+
+                    let inst = INST_MNEMONICS.get(slice);
+                    let pseudo_inst = PSEUDO_INST_MNEMONICS.get(slice);
+
+                    if inst.is_none() && pseudo_inst.is_none() {
+                        return Err(ParseError::UnknownInstruction(slice));
+                    }
+
+                    let ty_ils = if let Some(inst) = inst {
+                        matches!(inst.ty, InstType::Ils)
+                    } else {
+                        false
+                    };
 
                     let mut rs = 0;
                     let mut rt = 0;
@@ -330,7 +357,13 @@ impl<'a> Parser<'a> {
                     let mut shamt = 0;
                     let mut imm = NodeImm::Half(0);
 
-                    for (i, arg) in inst.args.iter().enumerate() {
+                    let args = if let Some(inst) = inst {
+                        &inst.args
+                    } else {
+                        &pseudo_inst.unwrap().args
+                    };
+
+                    for (i, arg) in args.iter().enumerate() {
                         if matches!(arg, InstArg::None) {
                             break;
                         }
@@ -396,16 +429,28 @@ impl<'a> Parser<'a> {
 
                     nodes.push(Node {
                         lexeme,
-                        kind: match inst.ty {
-                            InstType::R => NodeKind::InstR {
-                                inst,
+                        kind: if let Some(inst) = inst {
+                            match inst.ty {
+                                InstType::R => NodeKind::InstR {
+                                    inst,
+                                    rs,
+                                    rt,
+                                    rd,
+                                    shamt,
+                                },
+                                InstType::I | InstType::Ils => {
+                                    NodeKind::InstI { inst, rs, rt, imm }
+                                }
+                                InstType::J => NodeKind::InstJ { inst, addr: imm },
+                            }
+                        } else {
+                            NodeKind::InstPseudo {
+                                inst: pseudo_inst.unwrap(),
                                 rs,
                                 rt,
                                 rd,
-                                shamt,
-                            },
-                            InstType::I | InstType::Ils => NodeKind::InstI { inst, rs, rt, imm },
-                            InstType::J => NodeKind::InstJ { inst, addr: imm },
+                                addr: imm,
+                            }
                         },
                     });
                 }

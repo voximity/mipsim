@@ -1,7 +1,9 @@
+mod io;
 mod load;
 mod memory;
 mod processor;
 mod registers;
+pub use io::*;
 pub use load::*;
 pub use memory::*;
 pub use processor::*;

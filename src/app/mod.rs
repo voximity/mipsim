@@ -9,7 +9,7 @@ mod highlighting;
 mod menu_bar;
 mod output;
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct App {
     // editor
     pub body: String,
@@ -20,6 +20,23 @@ pub struct App {
     // simulator
     pub processor: Processor,
     pub pc_line_map: Option<HashMap<usize, u32>>,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        let output = Output::default();
+        let processor = Processor::new(output.io.out_tx.clone());
+
+        Self {
+            body: String::new(),
+            output,
+            file: None,
+            unsaved: false,
+
+            processor,
+            pc_line_map: None,
+        }
+    }
 }
 
 impl App {

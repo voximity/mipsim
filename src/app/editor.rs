@@ -3,7 +3,7 @@ use egui::Color32;
 use crate::{
     app::highlighting::highlight,
     assembler::{
-        inst::INST_MNEMONICS,
+        inst::{INST_MNEMONICS, PSEUDO_INST_MNEMONICS},
         lexer::{Lexeme, LexemeKind},
     },
     App,
@@ -22,14 +22,15 @@ impl Editor {
             _ => return,
         };
 
-        let inst_def = match INST_MNEMONICS.get(value) {
-            Some(def) => def,
-            None => return,
-        };
-
-        egui::show_tooltip_at_pointer(ui.ctx(), egui::Id::new("tooltip_lexeme_hover"), |ui| {
-            inst_def.show(ui)
-        });
+        if let Some(inst_def) = INST_MNEMONICS.get(value) {
+            egui::show_tooltip_at_pointer(ui.ctx(), egui::Id::new("tooltip_lexeme_hover"), |ui| {
+                inst_def.show(ui)
+            });
+        } else if let Some(inst_def) = PSEUDO_INST_MNEMONICS.get(value) {
+            egui::show_tooltip_at_pointer(ui.ctx(), egui::Id::new("tooltip_lexeme_hover"), |ui| {
+                inst_def.show(ui)
+            });
+        }
     }
 
     pub fn show(&self, app: &mut App, ui: &mut egui::Ui) {
