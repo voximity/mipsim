@@ -21,9 +21,9 @@ View, edit, assemble, execute, and step through MIPS assembly.
   - [ ] View assembled representation
 - [x] Execute
   - [x] Step through MIPS instructions one instruction at a time
-  - [x] Stdi/o output syscalls
+  - [x] Stdout syscalls
   - [x] Jumps and branches
-  - [ ] Stdi/o input syscalls
+  - [x] Stdin syscalls
   - [ ] Simulate a cycle rate and step at a certain frequency
   - [ ] Simulate the entire program instantaneously
   - [ ] Dynamic memory allocation syscall

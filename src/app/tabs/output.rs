@@ -30,31 +30,11 @@ impl Default for Output {
 }
 
 impl Output {
-    pub fn show(&mut self, ui: &mut egui::Ui, proc_tx: &ProcTx) {
-        ui.horizontal(|ui| {
-            macro_rules! tabs {
-                { $($variant:ident => $name:literal),*, } => {
-                    $(
-                        if ui.selectable_label(
-                            matches!(self.tab, OutputTab::$variant), $name
-                        )
-                        .clicked() {
-                            self.tab = OutputTab::$variant;
-                        }
-                    )*
-                }
-            }
-
-            tabs! {
-                Io => "Program IO",
-                Log => "Logs",
-            }
-        });
-
+    pub fn show(&mut self, tab: OutputTab, ui: &mut egui::Ui, proc_tx: &ProcTx) {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .stick_to_bottom(true)
-            .show(ui, |ui| match self.tab {
+            .show(ui, |ui| match tab {
                 OutputTab::Io => {
                     for line in self.io.lines.iter() {
                         ui.monospace(line);

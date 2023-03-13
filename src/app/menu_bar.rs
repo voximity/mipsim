@@ -1,8 +1,8 @@
-use crate::simulator::ProcMessage;
+use crate::{simulator::ProcMessage, AppContainer};
 
-use super::App;
+pub fn show_menu_bar(container: &mut AppContainer, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    let app = &mut container.app;
 
-pub fn show_menu_bar(app: &mut App, ctx: &egui::Context, frame: &mut eframe::Frame) {
     egui::TopBottomPanel::top("panel_toolbar").show(ctx, |ui| {
         egui::menu::bar(ui, |ui| {
             ui.menu_button("File", |ui| {

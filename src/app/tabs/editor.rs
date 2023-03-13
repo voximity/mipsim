@@ -12,7 +12,7 @@ use crate::{
 pub struct Editor;
 
 impl Editor {
-    pub fn show_lexeme_hint(&self, ui: &mut egui::Ui, app: &App, lexeme: &Lexeme) {
+    pub fn show_lexeme_hint(ui: &mut egui::Ui, app: &App, lexeme: &Lexeme) {
         let value = match lexeme {
             Lexeme {
                 kind: LexemeKind::Inst,
@@ -33,7 +33,7 @@ impl Editor {
         }
     }
 
-    pub fn show(&self, app: &mut App, ui: &mut egui::Ui) {
+    pub fn show(app: &mut App, ui: &mut egui::Ui) {
         let mut layouter = |ui: &egui::Ui, body: &str, _| {
             let (job, _) = highlight(ui.ctx(), body);
             ui.fonts(|f| f.layout_job(job))
@@ -67,7 +67,7 @@ impl Editor {
 
         // lexeme hovering
         if let Some(hover_pos) = ui.input(|p| p.pointer.hover_pos()) {
-            if editor.response.rect.contains(hover_pos) {
+            if ui.clip_rect().contains(hover_pos) && editor.response.rect.contains(hover_pos) {
                 let local_pos = hover_pos - editor.response.rect.left_top();
                 let hover_cursor = editor.galley.cursor_from_pos(local_pos);
 
@@ -77,7 +77,7 @@ impl Editor {
                     if let Some((_, lexeme)) =
                         lexemes.range(..hover_cursor.ccursor.index).next_back()
                     {
-                        self.show_lexeme_hint(ui, app, lexeme);
+                        Self::show_lexeme_hint(ui, app, lexeme);
                     }
                 }
             }

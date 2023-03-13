@@ -1,13 +1,12 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use crate::simulator::{AppMessage, AppRx, ProcSync, ProcTx, RegSync, Register, Registers};
+use crate::simulator::{AppMessage, AppRx, ProcSync, ProcTx, RegSync, Register};
 
-use self::{editor::Editor, output::Output};
+use self::tabs::output::Output;
 
-mod editor;
-mod highlighting;
-mod menu_bar;
-mod output;
+pub mod highlighting;
+pub mod menu_bar;
+pub mod tabs;
 
 #[derive(Debug)]
 pub struct App {
@@ -58,6 +57,7 @@ impl App {
             output: Output::default(),
             file: None,
             unsaved: false,
+
             proc: ProcState::default(),
             proc_tx,
             app_rx,
@@ -117,10 +117,8 @@ impl App {
 
         Ok(())
     }
-}
 
-impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    pub fn update(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
         while let Ok(message) = self.app_rx.try_recv() {
             match message {
                 AppMessage::Sync(sync) => {
@@ -140,37 +138,69 @@ impl eframe::App for App {
 
         // update output buffers
         self.output.log.update();
-
-        menu_bar::show_menu_bar(self, ctx, frame);
-
-        egui::SidePanel::right("panel_registers")
-            .resizable(true)
-            .width_range(200.0..=400.0)
-            .default_width(200.0)
-            .show(ctx, |ui| {
-                Registers::show(ui, &self.proc.regs);
-            });
-
-        egui::TopBottomPanel::bottom("panel_output")
-            .resizable(true)
-            .height_range(200.0..=400.0)
-            .default_height(200.0)
-            .show(ctx, |ui| {
-                ui.heading("Output");
-                self.output.show(ui, &self.proc_tx);
-            });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.with_layout(
-                egui::Layout::top_down_justified(egui::Align::Min).with_main_justify(true),
-                |ui| {
-                    egui::ScrollArea::both()
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            Editor.show(self, ui);
-                        })
-                },
-            );
-        });
     }
 }
+
+// impl eframe::App for App {
+//     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+//         while let Ok(message) = self.app_rx.try_recv() {
+//             match message {
+//                 AppMessage::Sync(sync) => {
+//                     self.proc.sync(sync);
+//                 }
+//                 AppMessage::PcLines(map) => {
+//                     self.proc.pc_lines = Some(map);
+//                 }
+//                 AppMessage::Io(string) => {
+//                     self.output.io.add(string);
+//                 }
+//                 AppMessage::Log(string) => {
+//                     self.output.log.tx.send(string).unwrap();
+//                 }
+//             }
+//         }
+
+//         // update output buffers
+//         self.output.log.update();
+
+//         menu_bar::show_menu_bar(self, ctx, frame);
+
+//         egui::CentralPanel::default()
+//             .frame(egui::Frame::central_panel(&ctx.style()).inner_margin(0.))
+//             .show(ctx, |ui| {
+//                 egui_dock::DockArea::new(&mut self.tree)
+//                     // .style(style)
+//                     .show_inside(ui, self.tab_viewer);
+//             });
+
+//         // egui::SidePanel::right("panel_registers")
+//         //     .resizable(true)
+//         //     .width_range(200.0..=400.0)
+//         //     .default_width(200.0)
+//         //     .show(ctx, |ui| {
+//         //         Registers::show(ui, &self.proc.regs);
+//         //     });
+
+//         // egui::TopBottomPanel::bottom("panel_output")
+//         //     .resizable(true)
+//         //     .height_range(200.0..=400.0)
+//         //     .default_height(200.0)
+//         //     .show(ctx, |ui| {
+//         //         ui.heading("Output");
+//         //         self.output.show(ui, &self.proc_tx);
+//         //     });
+
+//         // egui::CentralPanel::default().show(ctx, |ui| {
+//         //     ui.with_layout(
+//         //         egui::Layout::top_down_justified(egui::Align::Min).with_main_justify(true),
+//         //         |ui| {
+//         //             egui::ScrollArea::both()
+//         //                 .auto_shrink([false, false])
+//         //                 .show(ui, |ui| {
+//         //                     Editor.show(self, ui);
+//         //                 })
+//         //         },
+//         //     );
+//         // });
+//     }
+// }

@@ -790,6 +790,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui_dock"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f86bdfe987f753ffcdf896932f09babfc63580b21e1899c304166f0befc85c8"
+dependencies = [
+ "egui",
+]
+
+[[package]]
 name = "egui_extras"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1432,6 +1441,7 @@ dependencies = [
  "crossbeam",
  "eframe",
  "egui",
+ "egui_dock",
  "egui_extras",
  "lazy_static",
  "parking_lot",
