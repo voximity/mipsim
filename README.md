@@ -18,7 +18,7 @@ View, edit, assemble, execute, and step through MIPS assembly.
 - [x] Assemble MIPS
   - [x] Parse and load MIPS binary into processor
   - [x] Pseudo instructions
-  - [ ] View assembled representation
+  - [x] View assembled representation
 - [x] Execute
   - [x] Step through MIPS instructions one instruction at a time
   - [x] Stdout syscalls
@@ -27,9 +27,9 @@ View, edit, assemble, execute, and step through MIPS assembly.
   - [ ] Simulate a cycle rate and step at a certain frequency
   - [ ] Simulate the entire program instantaneously
   - [ ] Dynamic memory allocation syscall
-- [ ] Analyze memory
+- [x] Analyze memory
   - [x] View register state
-  - [ ] Explore program memory space in a hex dump
+  - [x] Explore program memory space in a hex dump
   - [ ] Modify program memory space
 
 ## Usage

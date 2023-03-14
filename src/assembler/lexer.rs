@@ -145,7 +145,7 @@ impl<'a> Lexer<'a> {
 
                 // either a label or an instruction
                 _ if c.is_alphabetic() => {
-                    let mut slice = self.take_while(idx, |c| c == '_' || c.is_alphabetic());
+                    let mut slice = self.take_while(idx, |c| c == '_' || c.is_alphanumeric());
 
                     if self.peek_is(|c| c == ':') {
                         // a label marker

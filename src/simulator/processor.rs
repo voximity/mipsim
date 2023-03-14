@@ -1,6 +1,7 @@
-use std::{io, mem::transmute, num::ParseIntError};
+use std::{io, mem::transmute, num::ParseIntError, sync::Arc};
 
 use byteorder::{ReadBytesExt, WriteBytesExt, BE};
+use parking_lot::RwLock;
 use thiserror::Error;
 
 use crate::assembler::inst::{Inst, InstType, INST_OPCODE_FUNC};
@@ -23,12 +24,27 @@ pub enum ExecError {
 
 #[derive(Debug)]
 pub struct Processor {
+    /// The registers of the processor.
     pub regs: Registers,
-    pub mem: Memory,
+
+    /// The program space memory of the processor.
+    /// Wrapped in an `Arc<RwLock<_>>` so that the `App` may
+    /// access its state on demand.
+    pub mem: Arc<RwLock<Memory>>,
+
+    /// The program counter. Next address to execute.
     pub pc: usize,
+
+    /// Whether or not the processor is currently loaded.
     pub loaded: bool,
+
+    /// Whether or not the processor is currently active (i.e., executing).
     pub active: bool,
+
+    /// The app message transmitter.
     pub app_tx: AppTx,
+
+    /// The processor message receiver.
     pub proc_rx: ProcRx,
 }
 
@@ -41,7 +57,7 @@ impl Processor {
     pub fn new(app_tx: AppTx, proc_rx: ProcRx) -> Self {
         Self {
             regs: Registers::default(),
-            mem: Memory::new(),
+            mem: Arc::new(RwLock::new(Memory::new())),
             pc: ADDR_TEXT,
             loaded: false,
             active: false,
@@ -50,9 +66,13 @@ impl Processor {
         }
     }
 
+    pub fn clone_mem_arc(&self) -> Arc<RwLock<Memory>> {
+        Arc::clone(&self.mem)
+    }
+
     pub fn reset(&mut self) -> ProcSync {
+        self.mem.write().reset();
         self.regs = Registers::default();
-        self.mem = Memory::new();
         self.pc = ADDR_TEXT;
         self.loaded = false;
         self.active = false;
@@ -87,8 +107,12 @@ impl Processor {
     pub fn step(&mut self) -> Result<(), ExecError> {
         // TODO: use the UI logging
 
-        self.mem.set_pos(self.pc);
-        let data = self.mem.read_u32::<BE>()?;
+        let data = {
+            let mut lock = self.mem.write();
+            lock.set_pos(self.pc);
+            lock.read_u32::<BE>()?
+        };
+
         let opcode = (data >> 26) as u8;
 
         match opcode {
@@ -115,12 +139,14 @@ impl Processor {
 
                             // print string
                             4 => {
+                                let mut mem = self.mem.write();
+
                                 let string_addr = self.regs.get_u32(REG_A0) as usize;
-                                self.mem.set_pos(string_addr);
+                                mem.set_pos(string_addr);
                                 let mut bytes = vec![];
 
                                 loop {
-                                    match self.mem.read_u8()? {
+                                    match mem.read_u8()? {
                                         0 => break,
                                         b => bytes.push(b),
                                     }
@@ -323,44 +349,44 @@ impl Processor {
 
             // lbu
             0x24 => {
-                self.mem
-                    .set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
-                self.regs.set_u32(rt, self.mem.read_u8()? as u32);
+                let mut mem = self.mem.write();
+                mem.set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
+                self.regs.set_u32(rt, mem.read_u8()? as u32);
             }
 
             // lhu
             0x25 => {
-                self.mem
-                    .set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
-                self.regs.set_u32(rt, self.mem.read_u16::<BE>()? as u32);
+                let mut mem = self.mem.write();
+                mem.set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
+                self.regs.set_u32(rt, mem.read_u16::<BE>()? as u32);
             }
 
             // lw
             0x23 => {
-                self.mem
-                    .set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
-                self.regs.set_u32(rt, self.mem.read_u32::<BE>()?);
+                let mut mem = self.mem.write();
+                mem.set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
+                self.regs.set_u32(rt, mem.read_u32::<BE>()?);
             }
 
             // sb
             0x28 => {
-                self.mem
-                    .set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
-                self.mem.write_u8(self.regs.get_u32(rt) as u8)?;
+                let mut mem = self.mem.write();
+                mem.set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
+                mem.write_u8(self.regs.get_u32(rt) as u8)?;
             }
 
             // sh
             0x29 => {
-                self.mem
-                    .set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
-                self.mem.write_u16::<BE>(self.regs.get_u32(rt) as u16)?;
+                let mut mem = self.mem.write();
+                mem.set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
+                mem.write_u16::<BE>(self.regs.get_u32(rt) as u16)?;
             }
 
             // sw
             0x2b => {
-                self.mem
-                    .set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
-                self.mem.write_u32::<BE>(self.regs.get_u32(rt))?;
+                let mut mem = self.mem.write();
+                mem.set_pos((self.regs.get_u32(rs) as i64 + to_signed_imm(imm) as i64) as usize);
+                mem.write_u32::<BE>(self.regs.get_u32(rt))?;
             }
 
             // beq
@@ -403,7 +429,7 @@ impl Processor {
             // jal
             0x03 => {
                 // set ra to the current pc
-                self.regs.set_u32(31, (self.pc >> 2) as u32);
+                self.regs.set_u32(31, (self.pc >> 2) as u32 + 1);
                 self.pc = (addr as usize) << 2;
             }
 

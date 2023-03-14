@@ -1,8 +1,10 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use crate::simulator::{AppMessage, AppRx, ProcSync, ProcTx, RegSync, Register};
+use parking_lot::RwLock;
 
-use self::tabs::output::Output;
+use crate::simulator::{AppMessage, AppRx, Memory, ProcSync, ProcTx, RegSync, Register};
+
+use self::tabs::{memory::MemoryViewer, output::Output};
 
 pub mod highlighting;
 pub mod menu_bar;
@@ -16,19 +18,21 @@ pub struct App {
     pub file: Option<PathBuf>,
     pub unsaved: bool,
 
+    // memory
+    pub memory: MemoryViewer,
+
     // processor synchronization
     pub proc: ProcState,
     pub proc_tx: ProcTx,
     pub app_rx: AppRx,
-    // simulator
-    // pub processor: Arc<RwLock<Processor>>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ProcState {
+    pub regs: [Register; 32],
+    pub mem: Arc<RwLock<Memory>>,
     pub pc: usize,
     pub pc_lines: Option<HashMap<usize, u32>>,
-    pub regs: [Register; 32],
     pub active: bool,
 }
 
@@ -51,14 +55,22 @@ impl ProcState {
 }
 
 impl App {
-    pub fn new(proc_tx: ProcTx, app_rx: AppRx) -> Self {
+    pub fn new(proc_tx: ProcTx, app_rx: AppRx, mem: Arc<RwLock<Memory>>) -> Self {
         Self {
             body: String::new(),
             output: Output::default(),
             file: None,
             unsaved: false,
 
-            proc: ProcState::default(),
+            memory: MemoryViewer::default(),
+
+            proc: ProcState {
+                regs: [Register(0); 32],
+                mem,
+                pc: 0,
+                pc_lines: None,
+                active: false,
+            },
             proc_tx,
             app_rx,
         }
@@ -123,6 +135,7 @@ impl App {
             match message {
                 AppMessage::Sync(sync) => {
                     self.proc.sync(sync);
+                    self.memory.request_refresh();
                 }
                 AppMessage::PcLines(map) => {
                     self.proc.pc_lines = Some(map);

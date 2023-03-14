@@ -5,6 +5,7 @@ use self::{editor::Editor, output::OutputTab};
 use super::App;
 
 pub mod editor;
+pub mod memory;
 pub mod output;
 
 #[derive(Debug)]
@@ -42,12 +43,10 @@ impl egui_dock::TabViewer for App {
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
         match tab {
             AppTab::Editor => Editor::show(self, ui),
-            AppTab::Memory => {
-                ui.label("TODO: memory tab");
-            }
+            AppTab::Memory => self.memory.show(ui, &self.proc.mem),
             AppTab::Log => self.output.show(OutputTab::Log, ui, &self.proc_tx),
             AppTab::Io => self.output.show(OutputTab::Io, ui, &self.proc_tx),
-            AppTab::Registers => Registers::show(ui, &self.proc.regs),
+            AppTab::Registers => Registers::show(self, ui),
         }
     }
 }

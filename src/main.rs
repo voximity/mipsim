@@ -1,6 +1,6 @@
 use app::{tabs::AppTab, App};
 use egui_dock::NodeIndex;
-use simulator::Processor;
+use simulator::{ProcSpawn, Processor};
 
 mod app;
 mod assembler;
@@ -8,13 +8,17 @@ mod simulator;
 mod util;
 
 fn main() {
-    let (proc_tx, app_rx) = Processor::spawn();
+    let ProcSpawn {
+        proc_tx,
+        app_rx,
+        mem,
+    } = Processor::spawn();
 
     eframe::run_native(
         "mipsim",
         eframe::NativeOptions::default(),
         Box::new(|_| {
-            let mut tree = egui_dock::Tree::new(vec![AppTab::Editor]);
+            let mut tree = egui_dock::Tree::new(vec![AppTab::Editor, AppTab::Memory]);
 
             let [node_editor, _] =
                 tree.split_right(NodeIndex::root(), 0.8, vec![AppTab::Registers]);
@@ -22,7 +26,7 @@ fn main() {
             let [_, _] = tree.split_below(node_editor, 0.8, vec![AppTab::Log, AppTab::Io]);
 
             let container = Box::new(AppContainer {
-                app: App::new(proc_tx, app_rx),
+                app: App::new(proc_tx, app_rx, mem),
                 tree,
             });
 

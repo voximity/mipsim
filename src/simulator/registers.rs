@@ -2,6 +2,8 @@ use std::{collections::HashMap, mem::transmute};
 
 use egui_extras::{Column, TableBuilder};
 
+use crate::app::App;
+
 use super::{ADDR_HEAP, ADDR_STACK_TOP};
 
 #[derive(Debug)]
@@ -110,7 +112,9 @@ impl Registers {
         self.data[index as usize].to_u32()
     }
 
-    pub fn show(ui: &mut egui::Ui, regs: &[Register; 32]) {
+    pub fn show(app: &mut App, ui: &mut egui::Ui) {
+        let regs = &app.proc.regs;
+
         TableBuilder::new(ui)
             .column(Column::auto().at_least(60.0).resizable(false))
             .column(Column::auto().at_least(30.0).resizable(false))
@@ -136,7 +140,17 @@ impl Registers {
                         ui.monospace(format!("{i}"));
                     });
                     row.col(|ui| {
-                        ui.monospace(format!("0x{:08x}", regs[i].0));
+                        if ui
+                            .add(
+                                egui::Label::new(
+                                    egui::RichText::new(format!("0x{:08x}", regs[i].0)).monospace(),
+                                )
+                                .sense(egui::Sense::click()),
+                            )
+                            .clicked()
+                        {
+                            app.memory.offset = unsafe { transmute::<_, u32>(regs[i].0) } as usize;
+                        }
                     });
                 })
             })

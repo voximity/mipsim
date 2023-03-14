@@ -13,7 +13,7 @@ pub const ADDR_TEXT: usize = 0x00400000;
 
 type Block = [u8; BLOCK_SIZE];
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Memory {
     tree: BTreeMap<usize, Block>,
     pos: usize,
@@ -21,10 +21,12 @@ pub struct Memory {
 
 impl Memory {
     pub fn new() -> Self {
-        Self {
-            tree: BTreeMap::new(),
-            pos: 0,
-        }
+        Self::default()
+    }
+
+    pub fn reset(&mut self) {
+        self.tree.clear();
+        self.pos = 0;
     }
 
     pub fn pos(&self) -> usize {
@@ -36,15 +38,18 @@ impl Memory {
     }
 
     pub fn align(&mut self, bytes: usize) {
-        self.pos += bytes - self.pos % bytes;
+        let rem = self.pos % bytes;
+        if rem != 0 {
+            self.pos += bytes - rem;
+        }
     }
 
     /// Get all of the blocks across boundaries, starting at an address, lasting some amount of bytes.
-    fn blocks(&self, start_addr: usize, size: usize) -> Vec<(&usize, &Block)> {
-        self.tree
-            .range((start_addr - BLOCK_SIZE + 1)..=(start_addr + size))
-            .collect()
-    }
+    // fn blocks(&self, start_addr: usize, size: usize) -> Vec<(&usize, &Block)> {
+    //     self.tree
+    //         .range((start_addr.saturating_sub(BLOCK_SIZE) + 1)..=(start_addr + size))
+    //         .collect()
+    // }
 
     /// Get all of the block addresses that contain the start address and the size.
     fn block_addrs(&self, start_addr: usize, size: usize) -> Vec<usize> {
@@ -55,6 +60,33 @@ impl Memory {
         }
 
         addrs
+    }
+
+    pub fn read_view(&self, addr: usize, buf: &mut [u8]) -> io::Result<usize> {
+        let len = buf.len();
+        let mut read = 0;
+
+        for base_addr in self.block_addrs(addr, len) {
+            if base_addr > addr && read < base_addr - addr {
+                read = base_addr - addr;
+            }
+            let local_addr = addr.saturating_sub(base_addr);
+
+            if let Some(block) = self.tree.get(&base_addr) {
+                let slice = &block[local_addr..(local_addr + len - read).min(BLOCK_SIZE)];
+                let (_, buf_slice) = buf.split_at_mut(read);
+                let (left, _) = buf_slice.split_at_mut(slice.len());
+                left.copy_from_slice(slice);
+                read += slice.len();
+            } else {
+                let (_, buf_slice) = buf.split_at_mut(read);
+                let (left, _) = buf_slice.split_at_mut((len - read).min(BLOCK_SIZE));
+                left.iter_mut().for_each(|m| *m = 0);
+                read += left.len();
+            }
+        }
+
+        Ok(len)
     }
 }
 
@@ -77,23 +109,7 @@ impl Seek for Memory {
 
 impl Read for Memory {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let addr = self.pos;
-        let len = buf.len();
-        let blocks = self.blocks(addr, len);
-        let mut read = 0;
-
-        for (base_addr, block) in blocks {
-            if *base_addr > addr && read < base_addr - addr {
-                read = base_addr - addr;
-            }
-            let local_addr = addr.saturating_sub(*base_addr);
-            let slice = &block[local_addr..(local_addr + len - read)];
-            let (_, buf_slice) = buf.split_at_mut(read);
-            let (left, _) = buf_slice.split_at_mut(slice.len());
-            left.copy_from_slice(slice);
-            read += slice.len();
-        }
-
+        let len = self.read_view(self.pos, buf)?;
         self.pos += len;
         Ok(len)
     }

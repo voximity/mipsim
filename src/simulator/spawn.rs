@@ -1,8 +1,10 @@
-use std::{collections::HashMap, thread};
+use std::{collections::HashMap, sync::Arc, thread};
+
+use parking_lot::RwLock;
 
 use crate::assembler::parser::Parser;
 
-use super::{LoadContext, Processor, Register};
+use super::{LoadContext, Memory, Processor, Register};
 
 /// Messages from the app to the processor.
 pub enum ProcMessage {
@@ -52,14 +54,22 @@ pub type ProcRx = crossbeam::channel::Receiver<ProcMessage>;
 pub type AppTx = crossbeam::channel::Sender<AppMessage>;
 pub type AppRx = crossbeam::channel::Receiver<AppMessage>;
 
+/// Return result of spawning a processor.
+pub struct ProcSpawn {
+    pub proc_tx: ProcTx,
+    pub app_rx: AppRx,
+    pub mem: Arc<RwLock<Memory>>,
+}
+
 impl Processor {
-    pub fn spawn() -> (ProcTx, AppRx) {
+    pub fn spawn() -> ProcSpawn {
         let (proc_tx, proc_rx) = crossbeam::channel::unbounded::<ProcMessage>();
         let (app_tx, app_rx) = crossbeam::channel::unbounded::<AppMessage>();
 
-        thread::spawn(move || {
-            let mut proc = Self::new(app_tx.clone(), proc_rx.clone());
+        let mut proc = Self::new(app_tx.clone(), proc_rx.clone());
+        let mem = proc.clone_mem_arc();
 
+        thread::spawn(move || {
             // sync once with the editor
             app_tx.send(AppMessage::Sync(proc.sync_hard())).unwrap();
 
@@ -115,7 +125,11 @@ impl Processor {
             }
         });
 
-        (proc_tx, app_rx)
+        ProcSpawn {
+            proc_tx,
+            app_rx,
+            mem,
+        }
     }
 
     pub fn io_recv(&mut self) -> Result<String, ()> {
