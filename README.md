@@ -4,7 +4,7 @@ mipsim (*mip - sim*) is a lightweight MIPS assembly editor and simulator.
 
 View, edit, assemble, execute, and step through MIPS assembly.
 
-![image](https://user-images.githubusercontent.com/11506439/224566792-0acbd91d-bddd-41c9-870b-8e2d00e20ac1.png)
+![image](https://user-images.githubusercontent.com/11506439/225070341-cded5a82-a087-4894-9eb3-0db1629a6f37.png)
 
 ## Features
 
