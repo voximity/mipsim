@@ -135,6 +135,11 @@ impl<'a> LoadContext<'a> {
                         )?;
                     }
 
+                    "nop" => {
+                        self.addr_lines.push((mem.pos(), node.lexeme.line));
+                        mem.write_u32::<BE>(0)?;
+                    }
+
                     _ => unimplemented!(),
                 },
             }

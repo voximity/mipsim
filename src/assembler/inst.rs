@@ -343,4 +343,5 @@ instructions! {
 
 pseudo_instructions! {
     "la"    "Load Address": "Load $addr (literally) into $rt. $addr can be a label name or a literal 32-bit value. Expands into a call to lui and ori." => [Rt, Addr, None],
+    "nop"   "No Operation": "Does nothing. Expands to a blank call to sll." => [None, None, None],
 }
