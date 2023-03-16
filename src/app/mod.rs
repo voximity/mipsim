@@ -7,7 +7,7 @@ use crate::simulator::{AppMessage, AppRx, Memory, ProcSync, ProcTx, RegSync, Reg
 use self::tabs::{memory::MemoryViewer, output::Output};
 
 pub mod highlighting;
-pub mod menu_bar;
+pub mod menu;
 pub mod tabs;
 
 #[derive(Debug)]

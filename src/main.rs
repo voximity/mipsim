@@ -52,7 +52,7 @@ impl eframe::App for AppContainer {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.app.update(ctx, frame);
 
-        app::menu_bar::show_menu_bar(self, ctx, frame);
+        app::menu::show_menu_bar(self, ctx, frame);
 
         egui::CentralPanel::default()
             .frame(egui::Frame::central_panel(&ctx.style()).inner_margin(0.0))
