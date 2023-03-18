@@ -324,8 +324,6 @@ instructions! {
     "subu"   "Subtract Unsigned"                (R, 0x23/0x00): "Performs $rd = $rs - $rt, unsigned." => [Rd, Rs, Rt],
     "xor"    "XOR"                              (R, 0x00/0x26): "Performs $rd = $rs ^ $rt." => [Rd, Rs, Rt],
 
-    //                                              treated the same as lw
-    // "la"     "Load Address"                     (I, 0x23/0x00): "Loads $mem($imm) into $rt." => [Rt, SImm, None],
     "lbu"    "Load Byte Unsigned"               (Ils, 0x24/0x00): "Loads $mem($rs + $imm) into $rt." => [Rt, SImm, Rs],
     "lhu"    "Load Half Unsigned"               (Ils, 0x25/0x00): "Loads two bytes at $mem($rs + $imm) into $rt." => [Rt, SImm, Rs],
     "lw"     "Load Word"                        (Ils, 0x23/0x00): "Loads a word at $mem($rs + $imm) into $rt." => [Rt, SImm, Rs],
