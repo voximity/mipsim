@@ -6,7 +6,7 @@ use egui::{
 };
 use parking_lot::RwLock;
 
-use crate::simulator::{Memory, ADDR_MEM_MAX, ADDR_STATIC};
+use crate::simulator::{Memory, ADDR_HEAP, ADDR_MEM_MAX, ADDR_STACK_TOP, ADDR_STATIC, ADDR_TEXT};
 
 pub const MEMORY_VIEW_BYTES: usize = 256; // 64 words * 4 bytes
 
@@ -69,7 +69,7 @@ impl MemoryViewer {
 
                     if self.offset < ADDR_MEM_MAX >> 2 {
                         let button = ui.button("Shift offset left 2 bits");
-                        
+
                         if button.hovered() {
                             egui::show_tooltip_for(ui.ctx(), egui::Id::new("tooltip_memory_shl"), &button.rect, |ui| ui.label("The offset address could be shifted left two bits. If you jumped to this address from a register, it may have been shifted right two bits by the assembler."));
                         }
@@ -78,6 +78,23 @@ impl MemoryViewer {
                             self.offset <<= 2;
                         }
                     }
+
+                    egui::ComboBox::from_id_source("combo_memory_addr_dropdown")
+                        .selected_text("Jump to...")
+                        .show_ui(ui, |ui| {
+                            if ui.button("Text").clicked() {
+                                self.offset = ADDR_TEXT;
+                            }
+                            if ui.button("Static").clicked() {
+                                self.offset = ADDR_STATIC;
+                            }
+                            if ui.button("Heap").clicked() {
+                                self.offset = ADDR_HEAP;
+                            }
+                            if ui.button("Stack Base").clicked() {
+                                self.offset = ADDR_STACK_TOP - MEMORY_VIEW_BYTES;
+                            }
+                        });
                 });
 
                 egui::Grid::new("grid_memory_viewer")
