@@ -44,13 +44,6 @@ impl Memory {
         }
     }
 
-    /// Get all of the blocks across boundaries, starting at an address, lasting some amount of bytes.
-    // fn blocks(&self, start_addr: usize, size: usize) -> Vec<(&usize, &Block)> {
-    //     self.tree
-    //         .range((start_addr.saturating_sub(BLOCK_SIZE) + 1)..=(start_addr + size))
-    //         .collect()
-    // }
-
     /// Get all of the block addresses that contain the start address and the size.
     fn block_addrs(&self, start_addr: usize, size: usize) -> Vec<usize> {
         let mut addrs = vec![start_addr / BLOCK_SIZE * BLOCK_SIZE];

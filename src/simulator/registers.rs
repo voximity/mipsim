@@ -163,7 +163,6 @@ pub struct Register(pub i32);
 
 impl Register {
     pub fn to_u32(self) -> u32 {
-        // SAFETY: i32 and u32 share a size
         unsafe { transmute(self.0) }
     }
 }

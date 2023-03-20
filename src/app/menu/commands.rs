@@ -39,7 +39,6 @@ pub struct Command {
     pub category: Category,
     pub keybind: Option<KeyboardShortcut>,
     pub action: fn(CommandCtx<'_>),
-    // pub action: fn(&mut App, &egui::Context, &mut eframe::Frame),
 }
 
 pub struct CommandCtx<'a> {
@@ -75,10 +74,6 @@ macro_rules! commands {
             Command {
                 name: $name,
                 category: Category::$category,
-                // keybind: Some(KeyboardShortcut {
-                //     modifiers: add_modifiers!($($modifier),*),
-                //     key: Key::$key,
-                // }),
                 keybind: keyboard_shortcut!($($modifier),* + $key),
                 action: $action_name,
             },
@@ -139,8 +134,6 @@ commands! {
 }
 
 lazy_static! {
-    // pub static ref COMMAND_KEYBINDS: HashMap<KeyboardShortcut, &'static Command> =
-    //     COMMANDS.iter().map(|c| (c.keybind, c)).collect();
     pub static ref COMMAND_CATEGORIES: HashMap<Category, Vec<&'static Command>> = {
         let mut map: HashMap<Category, Vec<&'static Command>> =
             CATEGORIES.iter().map(|c| (*c, vec![])).collect();

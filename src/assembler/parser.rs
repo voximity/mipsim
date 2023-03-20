@@ -9,8 +9,6 @@ use super::{
     lexer::{Lexeme, LexemeKind, Lexer},
 };
 
-// pub type SrcLexeme<'a> = (&'a Lexeme, &'a str);
-
 // TODO: make these errors better
 #[derive(Debug, Error)]
 pub enum ParseError<'a> {

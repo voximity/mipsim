@@ -28,6 +28,10 @@ pub fn show_menu_bar(container: &mut AppContainer, ctx: &egui::Context, frame: &
     });
 
     ctx.input_mut(|i| {
+        if i.keys_down.is_empty() {
+            return;
+        }
+
         // TODO: ideally we use a hash map to do this, but egui doesn't
         // TODO: make hashing key shortcuts very easy
         for command in COMMANDS.iter().filter(|c| c.keybind.is_some()) {
