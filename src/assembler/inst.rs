@@ -3,6 +3,8 @@ use std::{collections::HashMap, str::FromStr};
 use egui::{text::LayoutJob, Color32, TextFormat};
 use lazy_static::lazy_static;
 
+use crate::app::tabs::editor::LexemeHint;
+
 use super::lexer::{LexemeKind, Lexer};
 
 #[derive(Debug, Clone)]
@@ -10,7 +12,7 @@ pub struct Inst {
     /// The instruction mnemonic.
     pub mnemonic: &'static str,
 
-    /// The instruction name,
+    /// The instruction name.
     pub name: &'static str,
 
     /// The type of instruction (R, I, or J).
@@ -37,8 +39,8 @@ pub struct PseudoInst {
     pub args: [InstArg; 3],
 }
 
-impl Inst {
-    pub fn show(&self, ui: &mut egui::Ui) {
+impl LexemeHint for Inst {
+    fn show(&self, ui: &mut egui::Ui) {
         let ty_ils = matches!(self.ty, InstType::Ils);
 
         ui.horizontal(|ui| {
@@ -117,8 +119,8 @@ impl Inst {
     }
 }
 
-impl PseudoInst {
-    pub fn show(&self, ui: &mut egui::Ui) {
+impl LexemeHint for PseudoInst {
+    fn show(&self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.strong(self.name);
             ui.label("(pseudo)");

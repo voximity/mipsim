@@ -3,34 +3,65 @@ use egui::Color32;
 use crate::{
     app::highlighting::highlight,
     assembler::{
+        directive::DIRECTIVE_NAMES,
         inst::{INST_MNEMONICS, PSEUDO_INST_MNEMONICS},
         lexer::{Lexeme, LexemeKind},
     },
     App,
 };
 
+pub trait LexemeHint {
+    fn show(&self, ui: &mut egui::Ui);
+}
+
 pub struct Editor;
 
 impl Editor {
     pub fn show_lexeme_hint(ui: &mut egui::Ui, app: &App, lexeme: &Lexeme) {
-        let value = match lexeme {
+        let hint: &dyn LexemeHint = match lexeme {
             Lexeme {
                 kind: LexemeKind::Inst,
                 ref slice,
                 ..
-            } => &app.body[slice.clone()],
+            } => {
+                // instructions
+                let value = &app.body[slice.clone()];
+                let hint = INST_MNEMONICS
+                    .get(value)
+                    .map(|v| *v as &dyn LexemeHint)
+                    .or_else(|| {
+                        PSEUDO_INST_MNEMONICS
+                            .get(value)
+                            .map(|v| *v as &dyn LexemeHint)
+                    });
+
+                match hint {
+                    Some(hint) => hint,
+                    None => return,
+                }
+            }
+
+            Lexeme {
+                kind: LexemeKind::Sect,
+                ref slice,
+                ..
+            } => {
+                // directives
+                let value = &app.body[slice.clone()];
+                let hint = DIRECTIVE_NAMES.get(value).map(|v| *v as &dyn LexemeHint);
+
+                match hint {
+                    Some(hint) => hint,
+                    None => return,
+                }
+            }
+
             _ => return,
         };
 
-        if let Some(inst_def) = INST_MNEMONICS.get(value) {
-            egui::show_tooltip_at_pointer(ui.ctx(), egui::Id::new("tooltip_lexeme_hover"), |ui| {
-                inst_def.show(ui)
-            });
-        } else if let Some(inst_def) = PSEUDO_INST_MNEMONICS.get(value) {
-            egui::show_tooltip_at_pointer(ui.ctx(), egui::Id::new("tooltip_lexeme_hover"), |ui| {
-                inst_def.show(ui)
-            });
-        }
+        egui::show_tooltip_at_pointer(ui.ctx(), egui::Id::new("tooltip_lexeme_hover"), |ui| {
+            hint.show(ui)
+        });
     }
 
     pub fn show(app: &mut App, ui: &mut egui::Ui) {
