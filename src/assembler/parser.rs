@@ -227,6 +227,18 @@ impl<'a> Parser<'a> {
         }
     }
 
+    pub fn parse_i32(&'a self) -> Result<u32, ParseError<'a>> {
+        let (_, slice) = self.next_expect_kind(LexemeKind::Imm)?;
+
+        if let Some(stripped) = slice.strip_prefix("0x") {
+            // hexadecimal
+            Ok(u32::from_str_radix(stripped, 16)?)
+        } else {
+            // try to parse normally
+            Ok(unsafe { transmute::<i32, u32>(str::parse(slice)?) })
+        }
+    }
+
     pub fn parse_string(&'a self) -> Result<String, ParseError<'a>> {
         let (lex, slice) = self.next_expect_kind(LexemeKind::Imm)?;
         if !slice.starts_with('"') {
@@ -415,6 +427,12 @@ impl<'a> Parser<'a> {
                                 }
                                 Some(LexemeKind::Label) => {
                                     imm = NodeImm::Label(self.next().unwrap().1);
+                                }
+                                _ => return Err(ParseError::ExpectedImm(self.next().map(|l| l.0))),
+                            },
+                            InstArg::Word => match self.peek_kind() {
+                                Some(LexemeKind::Imm) => {
+                                    imm = NodeImm::Addr(self.parse_i32()?);
                                 }
                                 _ => return Err(ParseError::ExpectedImm(self.next().map(|l| l.0))),
                             },

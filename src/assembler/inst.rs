@@ -202,13 +202,31 @@ pub enum InstType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstArg {
+    /// The rs register.
     Rs,
+
+    /// The rt register.
     Rt,
+
+    /// The rd register.
     Rd,
+
+    /// The shift amount.
     Shamt,
+
+    /// Signed 16-bit immediate.
     SImm,
+
+    /// Unsigned 16-bit immediate.
     UImm,
+
+    /// An address (immediate or label).
     Addr,
+
+    /// A word (only usable by pseudo instructions).
+    Word,
+
+    /// Nothing.
     None,
 }
 
@@ -222,6 +240,7 @@ impl InstArg {
             Self::SImm => "imm",
             Self::UImm => "uimm",
             Self::Addr => "addr",
+            Self::Word => "word",
             Self::None => "",
         }
     }
@@ -235,6 +254,7 @@ impl InstArg {
             Self::SImm => Color32::LIGHT_GREEN,
             Self::UImm => Color32::LIGHT_GREEN,
             Self::Addr => Color32::LIGHT_GREEN,
+            Self::Word => Color32::LIGHT_GREEN,
             Self::None => Color32::WHITE,
         }
     }
@@ -344,4 +364,6 @@ instructions! {
 pseudo_instructions! {
     "la"    "Load Address": "Load $addr (literally) into $rt. $addr can be a label name or a literal 32-bit value. Expands into a call to lui and ori." => [Rt, Addr, None],
     "nop"   "No Operation": "Does nothing. Expands to a blank call to sll." => [None, None, None],
+    "li"    "Load Immediate": "Loads $imm into $rt." => [Rt, Word, None],
+    "move"  "Move": "Copies $rs into $rt." => [Rt, Rs, None],
 }

@@ -109,10 +109,10 @@ impl<'a> LoadContext<'a> {
 
                 NodeKind::InstPseudo {
                     inst,
-                    rs: _rs,
+                    rs,
                     rt,
                     rd: _rd,
-                    addr: _addr,
+                    addr,
                 } => match inst.mnemonic {
                     "la" => {
                         // push an addr ref at the first instruction
@@ -138,6 +138,38 @@ impl<'a> LoadContext<'a> {
                     "nop" => {
                         self.addr_lines.push((mem.pos(), node.lexeme.line));
                         mem.write_u32::<BE>(0)?;
+                    }
+
+                    "li" => {
+                        let value = match addr {
+                            NodeImm::Addr(v) => *v,
+                            NodeImm::Half(v) => *v as u32,
+                            _ => unimplemented!(), // this shouldn't be reachable
+                        };
+
+                        if value > u16::MAX as u32 {
+                            self.load_itype(
+                                &mut mem,
+                                node,
+                                INST_MNEMONICS["lui"],
+                                0,
+                                *rt,
+                                &NodeImm::Half(((value & 0xffff0000) >> 16) as u16),
+                            )?;
+                        }
+
+                        self.load_itype(
+                            &mut mem,
+                            node,
+                            INST_MNEMONICS["ori"],
+                            *rt,
+                            *rt,
+                            &NodeImm::Half((value & 0x0000ffff) as u16),
+                        )?;
+                    }
+
+                    "move" => {
+                        self.load_rtype(&mut mem, node, INST_MNEMONICS["add"], *rs, 0, *rt, 0)?;
                     }
 
                     _ => unimplemented!(),
@@ -248,7 +280,7 @@ impl<'a> LoadContext<'a> {
         inst: &'static Inst,
         rs: u8,
         rt: u8,
-        imm: &'a NodeImm,
+        imm: &NodeImm,
     ) -> Result<(), AssembleError<'a>> {
         self.addr_lines.push((mem.pos(), node.lexeme.line));
 
@@ -273,7 +305,7 @@ impl<'a> LoadContext<'a> {
         mem: &mut Memory,
         node: &'a Node,
         inst: &'static Inst,
-        addr: &'a NodeImm,
+        addr: &NodeImm,
     ) -> Result<(), AssembleError<'a>> {
         self.addr_lines.push((mem.pos(), node.lexeme.line));
 
