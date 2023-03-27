@@ -156,16 +156,24 @@ impl<'a> LoadContext<'a> {
                                 *rt,
                                 &NodeImm::Half(((value & 0xffff0000) >> 16) as u16),
                             )?;
+                            self.load_itype(
+                                &mut mem,
+                                node,
+                                INST_MNEMONICS["ori"],
+                                *rt,
+                                *rt,
+                                &NodeImm::Half((value & 0x0000ffff) as u16),
+                            )?;
+                        } else {
+                            self.load_itype(
+                                &mut mem,
+                                node,
+                                INST_MNEMONICS["addi"],
+                                0,
+                                *rt,
+                                &NodeImm::Half((value & 0x0000ffff) as u16),
+                            )?;
                         }
-
-                        self.load_itype(
-                            &mut mem,
-                            node,
-                            INST_MNEMONICS["ori"],
-                            *rt,
-                            *rt,
-                            &NodeImm::Half((value & 0x0000ffff) as u16),
-                        )?;
                     }
 
                     "move" => {
